@@ -1,84 +1,76 @@
-use anchor_lang::prelude::*;
-use anchor_lang::Discriminator;
-use anchor_spl::token_interface::spl_token_metadata_interface::borsh::BorshDeserialize;
+use anchor_lang::{prelude::*, Discriminator};
 use bytemuck::{Pod, Zeroable};
-use solana_program::instruction::Instruction;
-use solana_program::keccak;
-use solana_program::program::invoke_signed_unchecked;
-use wormhole_svm_shim::verify_vaa::VerifyHash;
-use wormhole_svm_shim::verify_vaa::VerifyHashAccounts;
-use wormhole_svm_shim::verify_vaa::VerifyHashData;
+use solana_program::{instruction::Instruction, keccak, program::invoke_signed_unchecked};
+use wormhole_svm_shim::verify_vaa;
 
-use super::helpers::create_account_reliably;
-
-use super::helpers::require_min_account_infos_len;
-use super::FallbackMatchingEngineInstruction;
-use crate::error::MatchingEngineError;
-use crate::state::FastMarketOrder as FastMarketOrderState;
-use crate::ID;
+use crate::{error::MatchingEngineError, state::FastMarketOrder, ID};
 
 pub struct InitializeFastMarketOrderAccounts<'ix> {
-    /// The signer of the transaction
+    /// Lamports from this signer will be used to create the new fast market
+    /// order account. This account will be the only authority allowed to
+    /// close this account.
+    /// TODO: Rename to "payer".
     pub signer: &'ix Pubkey,
-    /// The fast market order account pubkey (that is created by the instruction)
+    /// The fast market order account pubkey (that is created by the
+    /// instruction).
+    /// TODO: Rename to "new_fast_market_order".
     pub fast_market_order_account: &'ix Pubkey,
-    /// The guardian set account pubkey
+    /// Wormhole guardian set account used to check recovered pubkeys using
+    /// [Self::guardian_set_signatures].
+    /// TODO: Rename to "wormhole_guardian_set"
     pub guardian_set: &'ix Pubkey,
-    /// The guardian set signatures account pubkey (created by the post verify vaa shim program)
+    /// The guardian set signatures of fast market order VAA.
+    /// TODO: Rename to "shim_guardian_signatures".
     pub guardian_set_signatures: &'ix Pubkey,
-    /// The verify vaa shim program pubkey
     pub verify_vaa_shim_program: &'ix Pubkey,
-    /// The system program account pubkey
+    /// TODO: Remove.
     pub system_program: &'ix Pubkey,
-}
-
-impl<'ix> InitializeFastMarketOrderAccounts<'ix> {
-    pub fn to_account_metas(&self) -> Vec<AccountMeta> {
-        vec![
-            AccountMeta::new(*self.signer, true), // This will be the refund recipient
-            AccountMeta::new(*self.fast_market_order_account, false),
-            AccountMeta::new_readonly(*self.guardian_set, false),
-            AccountMeta::new_readonly(*self.guardian_set_signatures, false),
-            AccountMeta::new_readonly(*self.verify_vaa_shim_program, false),
-            AccountMeta::new_readonly(*self.system_program, false),
-        ]
-    }
 }
 
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct InitializeFastMarketOrderData {
     /// The fast market order as the bytemuck struct
-    pub fast_market_order: FastMarketOrderState,
+    pub fast_market_order: FastMarketOrder,
     /// The guardian set bump
     pub guardian_set_bump: u8,
     /// Padding to ensure bytemuck deserialization works
     _padding: [u8; 7],
 }
+
 impl InitializeFastMarketOrderData {
     // Adds the padding to the InitializeFastMarketOrderData
-    pub fn new(fast_market_order: FastMarketOrderState, guardian_set_bump: u8) -> Self {
+    pub fn new(fast_market_order: FastMarketOrder, guardian_set_bump: u8) -> Self {
         Self {
             fast_market_order,
             guardian_set_bump,
-            _padding: [0_u8; 7],
+            _padding: Default::default(),
         }
     }
 
-    /// Deserializes the InitializeFastMarketOrderData from a byte slice
+    /// Deserializes the InitializeFastMarketOrderData from a byte slice.
     ///
     /// # Arguments
     ///
-    /// * `data` - A byte slice containing the InitializeFastMarketOrderData
+    /// * `data` - A byte slice containing the InitializeFastMarketOrderData.
     ///
     /// # Returns
     ///
-    /// Option<&Self> - The deserialized InitializeFastMarketOrderData or None if the byte slice is not the correct length
+    /// Option<&Self> - The deserialized `InitializeFastMarketOrderData`` or
+    /// `None` if the byte slice is not the correct length.
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
-        bytemuck::try_from_bytes::<Self>(data).ok()
+        bytemuck::try_from_bytes(data).ok()
     }
 }
 
+/// Initializes the fast market order account.
+///
+/// The verify shim program first checks that the digest of the fast market
+/// order is correct, and that the guardian signature is correct and
+/// recoverable. If this is the case, the fast market order account is created.
+/// The fast market order account is owned by the matching engine program. It
+/// can be closed by the close fast market order instruction, which returns the
+/// lamports to the close account refund recipient.
 pub struct InitializeFastMarketOrder<'ix> {
     pub program_id: &'ix Pubkey,
     pub accounts: InitializeFastMarketOrderAccounts<'ix>,
@@ -87,113 +79,120 @@ pub struct InitializeFastMarketOrder<'ix> {
 
 impl InitializeFastMarketOrder<'_> {
     pub fn instruction(&self) -> Instruction {
+        let InitializeFastMarketOrderAccounts {
+            signer: payer,
+            fast_market_order_account: new_fast_market_order,
+            guardian_set: wormhole_guardian_set,
+            guardian_set_signatures: shim_guardian_signatures,
+            verify_vaa_shim_program,
+            system_program: _,
+        } = self.accounts;
+
         Instruction {
             program_id: *self.program_id,
-            accounts: self.accounts.to_account_metas(),
-            data: FallbackMatchingEngineInstruction::InitializeFastMarketOrder(&self.data).to_vec(),
+            accounts: vec![
+                AccountMeta::new(*payer, true),
+                AccountMeta::new(*new_fast_market_order, false),
+                AccountMeta::new_readonly(*wormhole_guardian_set, false),
+                AccountMeta::new_readonly(*shim_guardian_signatures, false),
+                AccountMeta::new_readonly(*verify_vaa_shim_program, false),
+                AccountMeta::new_readonly(solana_program::system_program::ID, false),
+            ],
+            data: super::FallbackMatchingEngineInstruction::InitializeFastMarketOrder(&self.data)
+                .to_vec(),
         }
     }
 }
 
-/// Initializes the fast market order account
-///
-/// The verify shim program first checks that the digest of the fast market order is correct, and that the guardian signature is correct and recoverable.
-/// If this is the case, the fast market order account is created. The fast market order account is owned by the matching engine program. It can be closed
-/// by the close fast market order instruction, which returns the lamports to the close account refund recipient.
-///
-/// # Arguments
-///
-/// * `accounts` - The accounts of the fast market order and the guardian set
-///
-/// # Returns
-///
-/// Result<()>
-pub fn initialize_fast_market_order(
+pub(super) fn process(
     accounts: &[AccountInfo],
     data: &InitializeFastMarketOrderData,
 ) -> Result<()> {
-    require_min_account_infos_len(accounts, 6)?;
+    super::helpers::require_min_account_infos_len(accounts, 6)?;
 
-    let signer = &accounts[0];
-    let fast_market_order_account = &accounts[1];
-    let guardian_set = &accounts[2];
-    let guardian_set_signatures = &accounts[3];
+    let fast_market_order = &data.fast_market_order;
 
-    let InitializeFastMarketOrderData {
-        fast_market_order,
-        guardian_set_bump,
-        _padding: _,
-    } = data;
-    // Start of cpi call to verify the shim.
-    // ------------------------------------------------------------------------------------------------
+    // Generate the VAA digest, which will be used to verify the guardian
+    // signatures.
     let fast_market_order_vaa_digest = fast_market_order.digest();
-    let fast_market_order_vaa_digest_hash =
-        keccak::Hash::try_from_slice(&fast_market_order_vaa_digest).unwrap();
-    let verify_hash_data =
-        VerifyHashData::new(*guardian_set_bump, fast_market_order_vaa_digest_hash);
-    let verify_hash_shim_ix = VerifyHash {
-        program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
-        accounts: VerifyHashAccounts {
-            guardian_set: &guardian_set.key(),
-            guardian_signatures: &guardian_set_signatures.key(),
-        },
-        data: verify_hash_data,
-    }
-    .instruction();
-    // Make the cpi call to verify the shim.
-    invoke_signed_unchecked(&verify_hash_shim_ix, accounts, &[])?;
-    // ------------------------------------------------------------------------------------------------
-    // End of cpi call to verify the shim.
 
-    // Start of fast market order account creation
-    // ------------------------------------------------------------------------------------------------
-    let fast_market_order_key = fast_market_order_account.key();
-    let space = 8_usize.saturating_add(std::mem::size_of::<FastMarketOrderState>());
-    let (fast_market_order_pda, fast_market_order_bump) = Pubkey::find_program_address(
+    // This payer will send lamports to the new fast market order account and
+    // will be the "owner" of this account. Only this account can close the
+    // fast market order account.
+    let payer_info = &accounts[0];
+
+    // Verify that the fast market order account's key is derived correctly.
+    let new_fast_market_order_info = &accounts[1];
+    let fast_market_order_key = new_fast_market_order_info.key;
+    let (expected_fast_market_order_key, fast_market_order_bump) = Pubkey::find_program_address(
         &[
-            FastMarketOrderState::SEED_PREFIX,
-            fast_market_order_vaa_digest.as_ref(),
+            FastMarketOrder::SEED_PREFIX,
+            &fast_market_order_vaa_digest,
             fast_market_order.close_account_refund_recipient.as_ref(),
         ],
         &ID,
     );
 
-    if fast_market_order_pda != fast_market_order_key {
-        msg!("Fast market order pda is invalid");
-        return Err(MatchingEngineError::InvalidPda.into())
-            .map_err(|e: Error| e.with_pubkeys((fast_market_order_key, fast_market_order_pda)));
+    if fast_market_order_key != &expected_fast_market_order_key {
+        return Err(MatchingEngineError::InvalidPda.into()).map_err(|e: Error| {
+            e.with_account_name("fast_market_order")
+                .with_pubkeys((*fast_market_order_key, expected_fast_market_order_key))
+        });
     }
-    let fast_market_order_seeds = [
-        FastMarketOrderState::SEED_PREFIX,
-        fast_market_order_vaa_digest.as_ref(),
-        fast_market_order.close_account_refund_recipient.as_ref(),
-        &[fast_market_order_bump],
-    ];
-    let fast_market_order_signer_seeds = &[&fast_market_order_seeds[..]];
-    // Create the account using the system program. The create account reliably ensures that the account creation cannot be raced.
-    create_account_reliably(
-        &signer.key(),
-        &fast_market_order_key,
-        fast_market_order_account.lamports(),
-        space,
+
+    // These accounts will be used by the Verify VAA shim program.
+    let wormhole_guardian_set_info = &accounts[2];
+    let shim_guardian_signatures_info = &accounts[3];
+
+    // Verify the VAA digest with the Verify VAA shim program.
+    invoke_signed_unchecked(
+        &verify_vaa::VerifyHash {
+            program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
+            accounts: verify_vaa::VerifyHashAccounts {
+                guardian_set: wormhole_guardian_set_info.key,
+                guardian_signatures: shim_guardian_signatures_info.key,
+            },
+            data: verify_vaa::VerifyHashData::new(
+                data.guardian_set_bump,
+                keccak::Hash(fast_market_order_vaa_digest),
+            ),
+        }
+        .instruction(),
+        accounts,
+        &[],
+    )?;
+
+    // Create the new fast market order account and serialize the instruction
+    // data into it.
+
+    const DISCRIMINATOR_LEN: usize = FastMarketOrder::DISCRIMINATOR.len();
+    const FAST_MARKET_ORDER_DATA_LEN: usize =
+        DISCRIMINATOR_LEN + std::mem::size_of::<FastMarketOrder>();
+
+    super::helpers::create_account_reliably(
+        payer_info.key,
+        fast_market_order_key,
+        new_fast_market_order_info.lamports(),
+        FAST_MARKET_ORDER_DATA_LEN,
         accounts,
         &ID,
-        fast_market_order_signer_seeds,
+        &[&[
+            FastMarketOrder::SEED_PREFIX,
+            &fast_market_order_vaa_digest,
+            // TODO: Replace with payer_info.key.
+            fast_market_order.close_account_refund_recipient.as_ref(),
+            &[fast_market_order_bump],
+        ]],
     )?;
-    // Borrow the account data mutably
-    let mut fast_market_order_account_data = fast_market_order_account.try_borrow_mut_data()?;
 
-    // Write the discriminator to the first 8 bytes
-    let discriminator = FastMarketOrderState::discriminator();
-    fast_market_order_account_data[0..8].copy_from_slice(&discriminator);
+    let mut new_fast_market_order_info_data = new_fast_market_order_info.try_borrow_mut_data()?;
 
-    let fast_market_order_bytes = bytemuck::bytes_of(fast_market_order);
-
-    // Write the fast_market_order struct to the account
-    fast_market_order_account_data[8..8_usize.saturating_add(fast_market_order_bytes.len())]
-        .copy_from_slice(fast_market_order_bytes);
-    // End of fast market order account creation
-    // ------------------------------------------------------------------------------------------------
+    // Write provided fast market order data to account starting with its
+    // discriminator.
+    new_fast_market_order_info_data[0..DISCRIMINATOR_LEN]
+        .copy_from_slice(&FastMarketOrder::DISCRIMINATOR);
+    new_fast_market_order_info_data[DISCRIMINATOR_LEN..FAST_MARKET_ORDER_DATA_LEN]
+        .copy_from_slice(bytemuck::bytes_of(fast_market_order));
 
     Ok(())
 }
