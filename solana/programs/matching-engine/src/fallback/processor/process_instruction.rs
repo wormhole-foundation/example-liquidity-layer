@@ -3,9 +3,8 @@ use wormhole_svm_definitions::make_anchor_discriminator;
 
 use crate::ID;
 
-use super::close_fast_market_order::close_fast_market_order;
 use super::execute_order::handle_execute_order_shim;
-use super::initialize_fast_market_order::{self, InitializeFastMarketOrderData};
+use super::initialize_fast_market_order::InitializeFastMarketOrderData;
 use super::place_initial_offer::{place_initial_offer_cctp_shim, PlaceInitialOfferCctpShimData};
 use super::prepare_order_response::{
     prepare_order_response_cctp_shim, PrepareOrderResponseCctpShimData,
@@ -29,6 +28,7 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
 pub enum FallbackMatchingEngineInstruction<'ix> {
     InitializeFastMarketOrder(&'ix InitializeFastMarketOrderData),
     CloseFastMarketOrder,
+    // TODO: Replace with u64.
     PlaceInitialOfferCctpShim(&'ix PlaceInitialOfferCctpShimData),
     ExecuteOrderCctpShim,
     PrepareOrderResponseCctpShim(PrepareOrderResponseCctpShimData),
@@ -48,10 +48,10 @@ pub fn process_instruction(
 
     match instruction {
         FallbackMatchingEngineInstruction::InitializeFastMarketOrder(data) => {
-            initialize_fast_market_order::process(accounts, data)
+            super::initialize_fast_market_order::process(accounts, data)
         }
         FallbackMatchingEngineInstruction::CloseFastMarketOrder => {
-            close_fast_market_order(accounts)
+            super::close_fast_market_order::process(accounts)
         }
         FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(data) => {
             place_initial_offer_cctp_shim(accounts, data)
@@ -73,15 +73,14 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
 
         match instruction_data[..SELECTOR_SIZE].try_into().unwrap() {
             FallbackMatchingEngineInstruction::PLACE_INITIAL_OFFER_CCTP_SHIM_SELECTOR => {
-                Some(Self::PlaceInitialOfferCctpShim(
-                    PlaceInitialOfferCctpShimData::from_bytes(&instruction_data[SELECTOR_SIZE..])
-                        .unwrap(),
-                ))
+                bytemuck::try_from_bytes(&instruction_data[SELECTOR_SIZE..])
+                    .ok()
+                    .map(Self::PlaceInitialOfferCctpShim)
             }
             FallbackMatchingEngineInstruction::INITIALIZE_FAST_MARKET_ORDER_SELECTOR => {
-                Some(Self::InitializeFastMarketOrder(bytemuck::from_bytes(
-                    &instruction_data[SELECTOR_SIZE..],
-                )))
+                bytemuck::try_from_bytes(&instruction_data[SELECTOR_SIZE..])
+                    .ok()
+                    .map(Self::InitializeFastMarketOrder)
             }
             FallbackMatchingEngineInstruction::CLOSE_FAST_MARKET_ORDER_SELECTOR => {
                 Some(Self::CloseFastMarketOrder)
@@ -90,6 +89,7 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
                 Some(Self::ExecuteOrderCctpShim)
             }
             FallbackMatchingEngineInstruction::PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR => {
+                // TODO: Fix this
                 Some(Self::PrepareOrderResponseCctpShim(
                     PrepareOrderResponseCctpShimData::from_bytes(
                         &instruction_data[SELECTOR_SIZE..],
@@ -107,7 +107,7 @@ impl FallbackMatchingEngineInstruction<'_> {
         match self {
             Self::InitializeFastMarketOrder(data) => {
                 let mut out = Vec::with_capacity(
-                    std::mem::size_of::<InitializeFastMarketOrderData>().saturating_add(8),
+                    SELECTOR_SIZE + std::mem::size_of::<InitializeFastMarketOrderData>(),
                 );
 
                 out.extend_from_slice(
@@ -118,53 +118,32 @@ impl FallbackMatchingEngineInstruction<'_> {
                 out
             }
             Self::PlaceInitialOfferCctpShim(data) => {
-                // Calculate the total capacity needed
-                let data_slice = bytemuck::bytes_of(*data);
-                let total_capacity = 8_usize.saturating_add(data_slice.len()); // 8 for the selector, plus the data length
+                let mut out = Vec::with_capacity(SELECTOR_SIZE + std::mem::size_of::<u64>());
 
-                // Create a vector with the calculated capacity
-                let mut out = Vec::with_capacity(total_capacity);
-
-                // Add the selector
                 out.extend_from_slice(
                     &FallbackMatchingEngineInstruction::PLACE_INITIAL_OFFER_CCTP_SHIM_SELECTOR,
                 );
-                out.extend_from_slice(data_slice);
+                out.extend_from_slice(bytemuck::bytes_of(*data));
 
                 out
             }
             Self::ExecuteOrderCctpShim => {
-                let total_capacity = 8; // 8 for the selector (no data)
-
-                let mut out = Vec::with_capacity(total_capacity);
-
-                out.extend_from_slice(
-                    &FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR,
-                );
-
-                out
+                FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR.to_vec()
             }
             Self::CloseFastMarketOrder => {
-                let total_capacity = 8; // 8 for the selector (no data)
-
-                let mut out = Vec::with_capacity(total_capacity);
-
-                out.extend_from_slice(
-                    &FallbackMatchingEngineInstruction::CLOSE_FAST_MARKET_ORDER_SELECTOR,
-                );
-
-                out
+                FallbackMatchingEngineInstruction::CLOSE_FAST_MARKET_ORDER_SELECTOR.to_vec()
             }
             Self::PrepareOrderResponseCctpShim(data) => {
-                let data_slice = data.try_to_vec().unwrap();
-                let total_capacity = 8_usize.saturating_add(data_slice.len()); // 8 for the selector, plus the data length
+                // Use a temporary vector, which will be consumed by the output vector when it is
+                // extended.
+                let tmp_data = data.try_to_vec().unwrap();
 
-                let mut out = Vec::with_capacity(total_capacity);
+                let mut out = Vec::with_capacity(tmp_data.len().saturating_add(SELECTOR_SIZE));
 
                 out.extend_from_slice(
                     &FallbackMatchingEngineInstruction::PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR,
                 );
-                out.extend_from_slice(&data_slice);
+                out.extend(tmp_data);
 
                 out
             }
