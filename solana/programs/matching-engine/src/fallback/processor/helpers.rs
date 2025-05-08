@@ -1,21 +1,21 @@
 use anchor_lang::prelude::*;
-
-use crate::ID;
-use anchor_spl::mint::USDC;
 use anchor_spl::token::spl_token;
-use solana_program::program_pack::Pack;
 use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     program::invoke_signed_unchecked,
+    program_pack::Pack,
     system_instruction,
 };
 
+use crate::ID;
+
 #[inline(always)]
-pub fn require_min_account_infos_len(accounts: &[AccountInfo], len: usize) -> Result<()> {
-    if accounts.len() < len {
+pub fn require_min_account_infos_len(accounts: &[AccountInfo], at_least_len: usize) -> Result<()> {
+    if accounts.len() < at_least_len {
         return Err(ErrorCode::AccountNotEnoughKeys.into());
     }
+
     Ok(())
 }
 
@@ -140,31 +140,29 @@ pub fn create_account_reliably(
     Ok(())
 }
 
-/// Create a token account reliably
+/// Create a USDC token account reliably.
 ///
-/// This function creates a token account and initializes it with the given mint and owner.
+/// This function creates a USDC token account and initializes it with the given owner.
 ///
 /// # Arguments
 ///
-/// * `payer_pubkey` - The pubkey of the account that will pay for the token account.
-/// * `account_pubkey_to_create` - The pubkey of the account to create.
-/// * `owner_account_info` - The account info of the owner of the token account.
-/// * `mint_pubkey` - The pubkey of the mint.
-/// * `data_len` - The length of the data to be written to the token account.
+/// * `payer_key` - The pubkey of the account that will pay for the token account.
+/// * `token_account_key` - The pubkey of the account to create.
+/// * `token_account_owner_key` - The account info of the owner of the token account.
+/// * `token_account_lamports` - Current lamports on token account.
 /// * `accounts` - The accounts to be used in the CPI.
 /// * `signer_seeds` - The signer seeds to be used in the CPI.
 pub fn create_usdc_token_account_reliably(
-    payer_pubkey: &Pubkey,
-    account_pubkey_to_create: &Pubkey,
-    owner_account_pubkey: &Pubkey,
+    payer_key: &Pubkey,
+    token_account_key: &Pubkey,
+    token_account_owner_key: &Pubkey,
     token_account_lamports: u64,
     accounts: &[AccountInfo],
     signer_seeds: &[&[&[u8]]],
 ) -> ProgramResult {
-    // Create the owner account
     create_account_reliably(
-        payer_pubkey,
-        account_pubkey_to_create,
+        payer_key,
+        token_account_key,
         token_account_lamports,
         spl_token::state::Account::LEN,
         accounts,
@@ -172,15 +170,13 @@ pub fn create_usdc_token_account_reliably(
         signer_seeds,
     )?;
 
-    // Create the token account
     let init_token_account_ix = spl_token::instruction::initialize_account3(
         &spl_token::ID,
-        account_pubkey_to_create,
-        &USDC,
-        owner_account_pubkey,
-    )?;
+        token_account_key,
+        &common::USDC_MINT,
+        token_account_owner_key,
+    )
+    .unwrap();
 
-    solana_program::program::invoke_signed_unchecked(&init_token_account_ix, accounts, &[])?;
-
-    Ok(())
+    solana_program::program::invoke_signed_unchecked(&init_token_account_ix, accounts, &[])
 }
