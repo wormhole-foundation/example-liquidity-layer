@@ -1,52 +1,57 @@
-use anchor_lang::prelude::*;
-use anchor_lang::Discriminator;
+use anchor_lang::{prelude::*, Discriminator};
 use solana_program::keccak;
 
-/// An account that represents a fast market order vaa. It is created by the signer of the transaction, and owned by the matching engine program.
-/// The of the account is able to close this account and redeem the lamports deposited into the account (for rent)
+/// An account that represents a fast market order VAA. It is created by the
+/// payer of the transaction. This payer is the only authority that can close
+/// this account and receive its rent.
 #[account(zero_copy)]
 #[derive(Debug)]
 #[repr(C)]
 pub struct FastMarketOrder {
-    /// The amount of tokens sent from the source chain via the fast transfer
+    /// The amount of tokens sent from the source chain via the fast transfer.
     pub amount_in: u64,
-    /// The minimum amount of tokens to be received on the target chain via the fast transfer
+    /// The minimum amount of tokens to be received on the target chain via the
+    /// fast transfer.
     pub min_amount_out: u64,
-    /// The deadline of the auction
+    /// The deadline of the auction.
     pub deadline: u32,
-    /// The target chain (represented as a wormhole chain id)
+    /// The target chain (represented as a Wormhole chain ID).
     pub target_chain: u16,
-    /// The length of the redeemer message
+    /// The length of the redeemer message.
     pub redeemer_message_length: u16,
-    /// The redeemer of the fast transfer (on the destination chain)
+    /// The redeemer of the fast transfer (on the destination chain).
     pub redeemer: [u8; 32],
-    /// The sender of the fast transfer (on the source chain)
+    /// The sender of the fast transfer (on the source chain).
     pub sender: [u8; 32],
-    /// The refund address of the fast transfer
+    /// The refund address of the fast transfer.
     pub refund_address: [u8; 32],
-    /// The maximum fee of the fast transfer
+    /// The maximum fee of the fast transfer.
     pub max_fee: u64,
-    /// The initial auction fee of the fast transfer
+    /// The initial auction fee of the fast transfer.
     pub init_auction_fee: u64,
-    /// The redeemer message of the fast transfer
-    /// NOTE: This value is based on the max redeemer length of 500 bytes that is specified in the token router program. If this changes in the future, this value must be updated.
+    /// The redeemer message of the fast transfer.
+    ///
+    /// NOTE: This value is based on the max redeemer length of 500 bytes that
+    /// is specified in the token router program. If this changes in the future,
+    /// this value must be updated.
     pub redeemer_message: [u8; 512],
-    /// The refund recipient for the creator of the fast market order account
+    /// The refund recipient for the creator of the fast market order account.
     pub close_account_refund_recipient: Pubkey,
     /// The emitter address of the fast transfer
     pub vaa_emitter_address: [u8; 32],
-    /// The sequence of the fast transfer vaa
+    /// The sequence of the fast transfer VAA.
     pub vaa_sequence: u64,
-    /// The timestamp of the fast transfer vaa
+    /// The timestamp of the fast transfer VAA.
     pub vaa_timestamp: u32,
-    /// The vaa nonce, which is not used and can be set to 0. 
+    /// The VAA nonce, which is not used and can be set to 0.
     // TODO: Can be taken out.
     pub vaa_nonce: u32,
-    /// The source chain of the fast transfer vaa (represented as a wormhole chain id)
+    /// The source chain of the fast transfer VAA. (represented as a Wormhole
+    /// chain ID).
     pub vaa_emitter_chain: u16,
-    /// The consistency level of the fast transfer vaa
+    /// The consistency level of the fast transfer VAA.
     pub vaa_consistency_level: u8,
-    /// Not used, but required for bytemuck serialisation
+    /// Not used, but required for bytemuck serialization.
     _padding: [u8; 5],
 }
 
@@ -72,6 +77,8 @@ pub struct FastMarketOrderParams {
 }
 
 impl FastMarketOrder {
+    pub const SEED_PREFIX: &'static [u8] = b"fast_market_order";
+
     pub fn new(params: FastMarketOrderParams) -> Self {
         Self {
             amount_in: params.amount_in,
@@ -96,16 +103,6 @@ impl FastMarketOrder {
         }
     }
 
-    pub const SEED_PREFIX: &'static [u8] = b"fast_market_order";
-
-    /// Convert the fast market order to a vec of bytes (without the discriminator)
-    pub fn to_vec(&self) -> Vec<u8> {
-        let payload_slice = bytemuck::bytes_of(self);
-        let mut payload = Vec::with_capacity(payload_slice.len());
-        payload.extend_from_slice(payload_slice);
-        payload
-    }
-
     /// Creates an payload as expected in a fast market order vaa
     pub fn payload(&self) -> Vec<u8> {
         let mut payload = vec![];
@@ -128,22 +125,23 @@ impl FastMarketOrder {
         payload
     }
 
-    /// A double hash of the serialised fast market order. Used for seeds and verification.
+    /// A double hash of the serialised fast market order. Used for seeds and
+    /// verification.
+    /// TODO: Change return type to keccak::Hash
     pub fn digest(&self) -> [u8; 32] {
-        let message_hash = keccak::hashv(&[
-            self.vaa_timestamp.to_be_bytes().as_ref(),
-            self.vaa_nonce.to_be_bytes().as_ref(),
-            self.vaa_emitter_chain.to_be_bytes().as_ref(),
-            &self.vaa_emitter_address,
-            &self.vaa_sequence.to_be_bytes(),
-            &[self.vaa_consistency_level],
-            self.payload().as_ref(),
-        ]);
-        // Digest is the hash of the message
-        keccak::hashv(&[message_hash.as_ref()])
-            .as_ref()
-            .try_into()
-            .unwrap()
+        wormhole_svm_definitions::compute_keccak_digest(
+            keccak::hashv(&[
+                &self.vaa_timestamp.to_be_bytes(),
+                &self.vaa_nonce.to_be_bytes(),
+                &self.vaa_emitter_chain.to_be_bytes(),
+                &self.vaa_emitter_address,
+                &self.vaa_sequence.to_be_bytes(),
+                &[self.vaa_consistency_level],
+                &self.payload(),
+            ]),
+            None,
+        )
+        .0
     }
 
     /// Read from an account info
