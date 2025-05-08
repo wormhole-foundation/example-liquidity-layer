@@ -68,6 +68,15 @@ check-idl: idl
 
 $(BUILD_$(NETWORK)): cargo-test
 
+.PHONY: test-sbf
+test-sbf:
+### Because the tests are performed in a separate module, we need to ensure that the programs are
+### built prior to performing `cargo test-sbf`.
+	cargo build-sbf --features mainnet
+### Unfortunately we cannot saturate all CPUs to perform tests due to nondeterministic `RpcError`
+### reverts. We constrain the number of threads when we run these tests.
+	cd modules/matching-engine-testing && cargo test-sbf --features mainnet -- --test-threads 4
+
 .PHONY: anchor-test
 anchor-test: anchor-test-setup
 	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
