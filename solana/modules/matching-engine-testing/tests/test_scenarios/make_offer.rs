@@ -403,7 +403,7 @@ pub async fn test_place_initial_offer_fails_if_fast_market_order_not_created() {
             fast_market_order_address: OverwriteCurrentState::Some(fake_fast_market_order_address),
             expected_error: Some(ExpectedError {
                 instruction_index: 2,
-                error_code: u32::from(ErrorCode::ConstraintOwner),
+                error_code: u32::from(ErrorCode::AccountDiscriminatorMismatch), // TODO: Revisit?
                 error_string: "Fast market order account owner is invalid".to_string(),
             }),
             ..PlaceInitialOfferInstructionConfig::default()

@@ -5,7 +5,7 @@ use crate::ID;
 
 use super::execute_order::handle_execute_order_shim;
 use super::initialize_fast_market_order::InitializeFastMarketOrderData;
-use super::place_initial_offer::{place_initial_offer_cctp_shim, PlaceInitialOfferCctpShimData};
+use super::place_initial_offer::PlaceInitialOfferCctpShimData;
 use super::prepare_order_response::{
     prepare_order_response_cctp_shim, PrepareOrderResponseCctpShimData,
 };
@@ -54,7 +54,7 @@ pub fn process_instruction(
             super::close_fast_market_order::process(accounts)
         }
         FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(data) => {
-            place_initial_offer_cctp_shim(accounts, data)
+            super::place_initial_offer::process(accounts, data)
         }
         FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
             handle_execute_order_shim(accounts)

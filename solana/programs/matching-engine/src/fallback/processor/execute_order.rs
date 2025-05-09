@@ -195,8 +195,9 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // Do checks
     // ------------------------------------------------------------------------------------------------
 
-    let fast_market_order_data = &fast_market_order_account.data.borrow()[..];
-    let fast_market_order_zero_copy = FastMarketOrderState::try_read(fast_market_order_data)?;
+    let fast_market_order_zero_copy =
+        super::helpers::try_fast_market_order_account(fast_market_order_account)?;
+
     // Bind value for compiler (needed for pda seeds)
     let active_auction_key = active_auction_account.key();
 
@@ -222,7 +223,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     };
 
     // Check custodian owner
-    check_custodian_owner_is_program_id(custodian_account)?;
+    super::helpers::require_owned_by_this_program(custodian_account, "custodian")?;
 
     // Check custodian deserialises into a checked custodian account
     let _checked_custodian = Custodian::try_deserialize(&mut &custodian_account.data.borrow()[..])?;
@@ -471,7 +472,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         .saturating_add(active_auction_info.security_deposit)
         .saturating_sub(user_reward);
 
-
     let penalized = penalty > 0;
 
     if penalized && active_auction_best_offer_token_account.key() != executor_token_account.key() {
@@ -503,7 +503,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 init_auction_fee,
             )
             .unwrap();
-     
+
             invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
             // Because the initial offer token was paid this fee, we account for it here.
             remaining_custodied_amount =

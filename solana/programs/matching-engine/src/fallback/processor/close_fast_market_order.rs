@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use solana_program::instruction::Instruction;
 
-use crate::{error::MatchingEngineError, state::FastMarketOrder};
+use crate::error::MatchingEngineError;
 
 pub struct CloseFastMarketOrderAccounts<'ix> {
     /// The fast market order account to be closed.
@@ -43,13 +43,9 @@ pub fn process(accounts: &[AccountInfo]) -> Result<()> {
     // We need to check the refund recipient account against what we know as the
     // refund recipient encoded in the fast market order account.
     let fast_market_order_info = &accounts[0];
+    let fast_market_order = super::helpers::try_fast_market_order_account(fast_market_order_info)?;
+
     let refund_recipient_info = &accounts[1];
-
-    let fast_market_order_data = &fast_market_order_info.data.borrow()[..];
-
-    // NOTE: We do not need to verify that the owner of this account is this
-    // program because the lamport transfer will fail otherwise.
-    let fast_market_order = FastMarketOrder::try_read(fast_market_order_data)?;
 
     // Check that the refund recipient provided in this instruction is the one
     // encoded in the fast market order account.

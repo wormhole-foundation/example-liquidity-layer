@@ -1,4 +1,4 @@
-use anchor_lang::{prelude::*, Discriminator};
+use anchor_lang::prelude::*;
 use solana_program::keccak;
 
 /// An account that represents a fast market order VAA. It is created by the
@@ -142,19 +142,5 @@ impl FastMarketOrder {
             None,
         )
         .0
-    }
-
-    /// Read from an account info
-    pub fn try_read(data: &[u8]) -> Result<&Self> {
-        if data.len() < 8 {
-            return Err(ErrorCode::AccountDiscriminatorNotFound.into());
-        }
-        let discriminator: [u8; 8] = data[0..8].try_into().unwrap();
-        if discriminator != Self::discriminator() {
-            return Err(ErrorCode::AccountDiscriminatorMismatch.into());
-        }
-        let byte_muck_data = &data[8..];
-        let fast_market_order = bytemuck::from_bytes::<Self>(byte_muck_data);
-        Ok(fast_market_order)
     }
 }

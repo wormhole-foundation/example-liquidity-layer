@@ -1,17 +1,12 @@
 use std::io::Cursor;
 
-use super::helpers::create_account_reliably;
-use super::place_initial_offer::VaaMessageBodyHeader;
+use super::helpers::{create_account_reliably, VaaMessageBodyHeader};
 use super::FallbackMatchingEngineInstruction;
-use crate::fallback::helpers::check_custodian_owner_is_program_id;
 use crate::fallback::helpers::create_usdc_token_account_reliably;
 use crate::fallback::helpers::require_min_account_infos_len;
 use crate::state::PreparedOrderResponseInfo;
 use crate::state::PreparedOrderResponseSeeds;
-use crate::state::{
-    Custodian, FastMarketOrder as FastMarketOrderState, MessageProtocol, PreparedOrderResponse,
-    RouterEndpoint,
-};
+use crate::state::{Custodian, MessageProtocol, PreparedOrderResponse, RouterEndpoint};
 use crate::CCTP_MINT_RECIPIENT;
 use crate::ID;
 use anchor_lang::prelude::*;
@@ -45,14 +40,15 @@ pub struct FinalizedVaaMessageArgs {
 }
 
 impl FinalizedVaaMessageArgs {
+    // TODO: Change return type to keccak::Hash
     pub fn digest(
         &self,
         vaa_message_body_header: VaaMessageBodyHeader,
         deposit_vaa_payload: Deposit,
     ) -> [u8; 32] {
         let message_hash = keccak::hashv(&[
-            vaa_message_body_header.vaa_time.to_be_bytes().as_ref(),
-            vaa_message_body_header.nonce.to_be_bytes().as_ref(),
+            vaa_message_body_header.timestamp.to_be_bytes().as_ref(),
+            [0, 0, 0, 0].as_ref(), // 0 nonce
             vaa_message_body_header.emitter_chain.to_be_bytes().as_ref(),
             &vaa_message_body_header.emitter_address,
             &vaa_message_body_header.sequence.to_be_bytes(),
@@ -60,10 +56,7 @@ impl FinalizedVaaMessageArgs {
             deposit_vaa_payload.to_vec().as_ref(),
         ]);
         // Digest is the hash of the message
-        keccak::hashv(&[message_hash.as_ref()])
-            .as_ref()
-            .try_into()
-            .unwrap()
+        keccak::hashv(&[message_hash.as_ref()]).0
     }
 }
 
@@ -208,11 +201,9 @@ pub fn prepare_order_response_cctp_shim(
     let cctp_message = CctpMessage::parse(&receive_message_args.encoded_message)
         .map_err(|_| MatchingEngineError::InvalidCctpMessage)?;
 
-    
     // Load accounts
-    let fast_market_order_account_data = &fast_market_order.data.borrow()[..];
     let fast_market_order_zero_copy =
-        FastMarketOrderState::try_read(fast_market_order_account_data)?;
+        super::helpers::try_fast_market_order_account(fast_market_order)?;
     // Create pdas for addresses that need to be created
     // Check the prepared order response account is valid
     let fast_market_order_digest = fast_market_order_zero_copy.digest();
@@ -230,7 +221,7 @@ pub fn prepare_order_response_cctp_shim(
     );
 
     // Check custodian owner
-    check_custodian_owner_is_program_id(custodian)?;
+    super::helpers::require_owned_by_this_program(custodian, "custodian")?;
     // Check that custodian deserializes correctly
     let _checked_custodian =
         Custodian::try_deserialize(&mut &custodian.data.borrow()[..]).map(Box::new)?;
