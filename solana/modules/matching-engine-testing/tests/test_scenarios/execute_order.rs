@@ -970,7 +970,7 @@ pub async fn test_execute_order_shim_after_close_fast_market_order_fails() {
         )
         .await;
     let expected_error = ExpectedError {
-        instruction_index: 0,
+        instruction_index: 2,
         error_code: 3001, // Account Discriminator not found
         error_string: "AccountDiscriminatorNotFound.".to_string(),
     };
@@ -1081,7 +1081,7 @@ pub async fn test_execute_order_shim_emitter_chain_mismatch() {
         ExecuteOrderInstructionConfig {
             vaa_index: 1,
             expected_error: Some(ExpectedError {
-                instruction_index: 0,
+                instruction_index: 2,
                 error_code: u32::from(MatchingEngineError::VaaMismatch),
                 error_string: "AccountNotInitialized".to_string(),
             }),
@@ -1112,7 +1112,7 @@ pub async fn test_execute_order_shim_before_auction_duration_is_over() {
         ExecuteOrderInstructionConfig {
             fast_forward_slots: 0,
             expected_error: Some(ExpectedError {
-                instruction_index: 0,
+                instruction_index: 2,
                 error_code: u32::from(MatchingEngineError::AuctionPeriodNotExpired),
                 error_string: "AuctionPeriodNotExpired".to_string(),
             }),

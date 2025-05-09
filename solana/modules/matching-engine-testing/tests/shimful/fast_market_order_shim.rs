@@ -92,8 +92,8 @@ pub async fn initialize_fast_market_order_shimful(
             &[initialize_fast_market_order_ix],
             Some(&payer_signer.pubkey()),
             &[&payer_signer],
-            1000000000,
-            1000000000,
+            None,
+            None,
         )
         .await;
     testing_context

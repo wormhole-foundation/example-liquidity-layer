@@ -21,18 +21,15 @@ use solana_sdk::{pubkey::Pubkey, signer::Signer};
 ///
 /// # Arguments
 ///
-/// * `testing_context` - The testing context
-/// * `payer_signer` - The payer signer
-/// * `vaa_data` - The vaa data (not posted)
-/// * `solver` - The solver actor that will place the initial offer
-/// * `fast_market_order_account` - The fast market order account pubkey created by the create fast market order shim instruction
-/// * `auction_accounts` - The auction accounts (see utils/auction.rs)
-/// * `offer_price` - The offer price in the units of the offer token
-/// * `expected_error` - The expected error (None if no error is expected)
+/// * `testing_context` - The testing context of the testing engine
+/// * `test_context` - Mutable reference to the test context
+/// * `current_state` - The current state of the testing engine
+/// * `config` - The config of the place initial offer instruction
+/// * `expected_error` - The expected error of the place initial offer instruction
 ///
 /// # Returns
 ///
-/// * `Option<InitialOfferPlacedState>` - An auction state with the initial offer placed. None if an error is expected.
+/// * `TestingEngineState` - The state of the testing engine after the place initial offer instruction
 ///
 /// # Asserts
 ///
@@ -72,8 +69,8 @@ pub async fn place_initial_offer_shimful(
             &[place_initial_offer_ix],
             Some(&payer_signer.pubkey()),
             &[&payer_signer],
-            1000000000,
-            1000000000,
+            None,
+            None,
         )
         .await;
     testing_context

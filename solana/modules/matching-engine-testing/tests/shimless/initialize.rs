@@ -181,9 +181,12 @@ pub async fn initialize_program(
             test_context,
             &[instruction],
             Some(&payer_signer.pubkey()),
-            &[&payer_signer, &testing_context.testing_actors.owner.keypair()],
-            1000000000,
-            1000000000,
+            &[
+                &payer_signer,
+                &testing_context.testing_actors.owner.keypair(),
+            ],
+            None,
+            None,
         )
         .await;
     // Process transaction
@@ -200,9 +203,12 @@ pub async fn initialize_program(
                 test_context,
                 &[instruction],
                 Some(&payer_signer.pubkey()),
-                &[&payer_signer, &testing_context.testing_actors.owner.keypair()],
-                1000000000,
-                1000000000,
+                &[
+                    &payer_signer,
+                    &testing_context.testing_actors.owner.keypair(),
+                ],
+                None,
+                None,
             )
             .await;
         let versioned_transaction = VersionedTransaction::from(transaction);

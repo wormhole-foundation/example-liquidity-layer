@@ -421,7 +421,7 @@ impl ActiveAuctionState {
 ///
 /// # Fields
 ///
-/// * `participant` - The participant of the offer
+/// * `participant` - The participant of the offer (the signer of the transaction)
 /// * `offer_token` - The token of the offer
 /// * `offer_price` - The price of the offer
 #[derive(Clone, Default)]

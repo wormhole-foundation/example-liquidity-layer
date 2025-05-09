@@ -157,6 +157,8 @@ impl PreTestingContext {
     }
 }
 
+// TODO: Move the testing context to a different module
+
 /// Testing Context struct that stores common data needed to run tests
 ///
 /// # Fields
@@ -398,9 +400,11 @@ impl TestingContext {
         instructions: &[Instruction],
         payer: Option<&Pubkey>,
         signers: &[&Keypair],
-        compute_unit_price: u64,
-        compute_unit_limit: u32,
+        compute_unit_price: Option<u64>,
+        compute_unit_limit: Option<u32>,
     ) -> Transaction {
+        let compute_unit_price = compute_unit_price.unwrap_or_else(|| 1000000000);
+        let compute_unit_limit = compute_unit_limit.unwrap_or_else(|| 1000000000);
         let last_blockhash = self.get_new_latest_blockhash(test_context).await.unwrap();
         let compute_budget_price =
             ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price);
@@ -442,7 +446,7 @@ impl TestingContext {
                         instruction_index, expected_error.instruction_index,
                         "Expected error on instruction {}, but got: {:?}",
                         expected_error.instruction_index, tx_error
-                        );
+                    );
                     match instruction_error {
                         InstructionError::Custom(error_code) => {
                             assert_eq!(
@@ -1088,7 +1092,7 @@ impl TestingActors {
     }
 
     /// Creates USDC associated token accounts
-    /// 
+    ///
     /// Creates usdc associated token accounts for all actors that expect to have them
     ///
     /// # Arguments

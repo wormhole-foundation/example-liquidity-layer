@@ -18,6 +18,13 @@ use std::str::FromStr;
 use wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH;
 use wormhole_svm_shim::verify_vaa;
 
+/// Guardian signature info
+///
+/// # Fields
+///
+/// * `guardian_set_pubkey` - The guardian set pubkey
+/// * `guardian_signatures_pubkey` - The guardian signatures pubkey
+/// * `guardian_set_bump` - The guardian set bump
 pub struct GuardianSignatureInfo {
     pub guardian_set_pubkey: Pubkey,
     pub guardian_signatures_pubkey: Pubkey,

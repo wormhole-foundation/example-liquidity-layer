@@ -343,7 +343,7 @@ impl TestingEngine {
                         .await
                 }
                 InstructionTrigger::ExecuteOrderShim(ref config) => {
-                    self.execute_order_shim(test_context, current_state, config)
+                    self.execute_order_shimful(test_context, current_state, config)
                         .await
                 }
                 InstructionTrigger::ExecuteOrderShimless(ref config) => {
@@ -638,43 +638,19 @@ impl TestingEngine {
     }
 
     /// Instruction trigger function for executing an order
-    async fn execute_order_shim(
+    async fn execute_order_shimful(
         &self,
         test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &ExecuteOrderInstructionConfig,
     ) -> TestingEngineState {
-        let result = shimful::shims_execute_order::execute_order_shimful_test(
+        shimful::shims_execute_order::execute_order_shimful(
             &self.testing_context,
             test_context,
             current_state,
             config,
         )
-        .await;
-        if config.expected_error.is_none() {
-            let auction_accounts = current_state
-                .auction_accounts()
-                .expect("Auction accounts not found");
-            let order_executed_fallback_fixture = result.unwrap();
-            let order_executed_state = OrderExecutedState {
-                cctp_message: order_executed_fallback_fixture.cctp_message,
-                post_message_sequence: Some(order_executed_fallback_fixture.post_message_sequence),
-                post_message_message: Some(order_executed_fallback_fixture.post_message_message),
-                actor_enum: config.actor_enum,
-            };
-            TestingEngineState::OrderExecuted {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state: current_state.auction_state().clone(),
-                order_executed: order_executed_state,
-                auction_accounts: auction_accounts.clone(),
-                order_prepared: current_state.order_prepared().cloned(),
-            }
-        } else {
-            current_state.clone()
-        }
+        .await
     }
 
     /// Instruction trigger function for executing an order
@@ -750,43 +726,13 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &PrepareOrderResponseInstructionConfig,
     ) -> TestingEngineState {
-        let result = shimful::shims_prepare_order_response::prepare_order_response_test(
+        shimful::shims_prepare_order_response::prepare_order_response_cctp_shimful(
             &self.testing_context,
             test_context,
             config,
             current_state,
         )
-        .await;
-        if config.expected_error.is_none() {
-            let auction_accounts =
-                config
-                    .overwrite_auction_accounts
-                    .as_ref()
-                    .unwrap_or_else(|| {
-                        current_state
-                            .auction_accounts()
-                            .expect("Auction accounts not found")
-                    });
-            let prepare_order_response_fixture = result.unwrap();
-            let order_prepared_state = OrderPreparedState {
-                prepared_order_response_address: prepare_order_response_fixture
-                    .prepared_order_response,
-                prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
-                base_fee_token: prepare_order_response_fixture.base_fee_token,
-                actor_enum: config.actor_enum,
-            };
-            TestingEngineState::OrderPrepared {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state: current_state.auction_state().clone(),
-                order_prepared: order_prepared_state,
-                auction_accounts: auction_accounts.clone(),
-            }
-        } else {
-            current_state.clone()
-        }
+        .await
     }
 
     /// Instruction trigger function for preparing an order
@@ -1003,11 +949,9 @@ impl TestingEngine {
                     place_initial_offer_instruction,
                 ],
                 Some(&place_initial_offer_payer_signer.pubkey()),
-                &[
-                    &place_initial_offer_payer_signer,
-                ],
-                1000000000,
-                1000000000,
+                &[&place_initial_offer_payer_signer],
+                None,
+                None,
             )
             .await;
         let actor_usdc_balance_before = place_initial_offer_config

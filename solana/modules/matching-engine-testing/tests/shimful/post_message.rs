@@ -110,6 +110,21 @@ pub async fn set_up_post_message_transaction_test(
     );
 }
 
+/// Set up post message transaction
+///
+/// This function sets up a post message transaction
+///
+/// # Arguments
+///
+/// * `payload` - The payload to post
+/// * `payer_signer` - The payer signer
+/// * `emitter_signer` - The emitter signer
+/// * `recent_blockhash` - The recent blockhash
+///
+/// # Returns
+///
+/// * `VersionedTransaction` - The versioned transaction that can be executed to post the message
+/// * `BumpCosts` - The bump costs for the message and sequence
 fn set_up_post_message_transaction(
     payload: &[u8],
     payer_signer: &Keypair,

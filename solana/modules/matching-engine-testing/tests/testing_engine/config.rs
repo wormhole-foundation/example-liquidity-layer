@@ -52,7 +52,7 @@ pub type OverwriteCurrentState<T> = Option<T>;
 ///
 /// # Fields
 ///
-/// * `instruction_index` - The index of the instruction that is expected to error
+/// * `instruction_index` - The index of the instruction that is expected to error. Because of how the transaction is built in the testing engine, the instruction index is always at least 2.
 /// * `error_code` - The error code that is expected to be returned
 /// * `error_string` - A description of the error that is expected to be returned for debugging purposes
 // TODO: Change the error string to either be checked for or change the field name AND make it optional
