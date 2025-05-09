@@ -76,6 +76,10 @@ contract TokenRouterTest is Test, ITokenRouterEvents {
     ITokenRouter router;
     SigningWormholeSimulator wormholeSimulator;
     CircleSimulator circleSimulator;
+    
+    // Core bridge. 
+    uint256 immutable WORMHOLE_MESSAGE_FEE_STORAGE_SLOT = 7;
+    uint256 immutable WORMHOLE_MESSAGE_FEE = 1; 
 
     function deployProxy(address _token, address _wormhole, address _tokenMessenger)
         internal
@@ -128,6 +132,9 @@ contract TokenRouterTest is Test, ITokenRouterEvents {
 
         circleSimulator = new CircleSimulator(TESTING_SIGNER, MESSAGE_TRANSMITTER);
         circleSimulator.setupCircleAttester();
+
+        // Set core bridge messageFee > 0
+        vm.store(address(wormhole), bytes32(uint256(WORMHOLE_MESSAGE_FEE_STORAGE_SLOT)), bytes32(uint256(WORMHOLE_MESSAGE_FEE)));
     }
 
     /**
@@ -1607,7 +1614,9 @@ contract TokenRouterTest is Test, ITokenRouterEvents {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeMarketOrder(
+        _router.placeMarketOrder{
+          value: WORMHOLE_MESSAGE_FEE
+        }(
             amountIn, minAmountOut, targetChain, redeemer, redeemerMessage, refundAddress
         );
 
@@ -1637,7 +1646,7 @@ contract TokenRouterTest is Test, ITokenRouterEvents {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeMarketOrder(amountIn, targetChain, redeemer, redeemerMessage);
+        _router.placeMarketOrder{value: WORMHOLE_MESSAGE_FEE}(amountIn, targetChain, redeemer, redeemerMessage);
 
         // Fetch the logs for Wormhole message.
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -1663,7 +1672,9 @@ contract TokenRouterTest is Test, ITokenRouterEvents {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeFastMarketOrder(
+        _router.placeFastMarketOrder{
+          value: WORMHOLE_MESSAGE_FEE * 2
+        }(
             expectedOrder.amountIn,
             expectedOrder.minAmountOut,
             expectedOrder.targetChain,
@@ -1708,7 +1719,9 @@ contract TokenRouterTest is Test, ITokenRouterEvents {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeFastMarketOrder(
+        _router.placeFastMarketOrder{
+          value: WORMHOLE_MESSAGE_FEE * 2
+        }(
             amountIn, targetChain, redeemer, redeemerMessage, maxFee, deadline
         );
 
