@@ -39,7 +39,7 @@ pub async fn settle_auction_complete(
     test_context: &mut ProgramTestContext,
     config: &SettleAuctionInstructionConfig,
     expected_error: Option<&ExpectedError>,
-) -> AuctionState {
+) -> TestingEngineState {
     let payer_signer = &config
         .payer_signer
         .clone()
@@ -102,8 +102,17 @@ pub async fn settle_auction_complete(
         .execute_and_verify_transaction(test_context, tx, expected_error)
         .await;
     if expected_error.is_none() {
-        AuctionState::Settled
+        TestingEngineState::AuctionSettled {
+            base: current_state.base().clone(),
+            initialized: current_state.initialized().unwrap().clone(),
+            router_endpoints: current_state.router_endpoints().unwrap().clone(),
+            auction_state: AuctionState::Settled(Box::new(active_auction.clone())),
+            fast_market_order: current_state.fast_market_order().cloned(),
+            order_prepared: current_state.order_prepared().unwrap().clone(),
+            auction_accounts: current_state.auction_accounts().cloned(),
+            order_executed: current_state.order_executed().cloned(),
+        }
     } else {
-        AuctionState::Active(Box::new(active_auction.clone()))
+        current_state.clone()
     }
 }

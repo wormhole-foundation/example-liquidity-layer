@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use crate::testing_engine::config::{ExecuteOrderInstructionConfig, ExpectedError};
+use crate::testing_engine::config::{ExecuteOrderInstructionConfig, InstructionConfig};
 use crate::testing_engine::setup::{TestingContext, TransferDirection};
-use crate::utils::account_fixtures::FixtureAccounts;
+use crate::testing_engine::state::{OrderExecutedState, TestingEngineState};
 use crate::utils::auction::{AuctionAccounts, AuctionState};
 use anchor_lang::prelude::*;
 use anchor_lang::{InstructionData, ToAccountMetas};
@@ -22,18 +22,123 @@ use solana_sdk::sysvar::SysvarId;
 use solana_sdk::transaction::Transaction;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
-pub struct ExecuteOrderShimlessFixture {
-    pub cctp_message: Pubkey,
+/// Execute order shimless
+///
+/// Helper function to execute an order using the shimless method
+///
+/// # Arguments
+///
+/// * `testing_context`: The testing context of the testing engine
+/// * `test_context`: A mutable reference to the test context
+/// * `current_state`: The current state of the testing engine
+/// * `config`: The execute order instruction config
+/// * `auction_accounts`: The auction accounts
+///
+/// # Returns
+///
+/// The new state of the testing engine
+pub async fn execute_order_shimless(
+    testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
+    current_state: &TestingEngineState,
+    config: &ExecuteOrderInstructionConfig,
+    auction_accounts: &AuctionAccounts,
+) -> TestingEngineState {
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
+    let auction_state = current_state.auction_state();
+    let slots_to_fast_forward = config.fast_forward_slots;
+    if slots_to_fast_forward > 0 {
+        crate::testing_engine::engine::fast_forward_slots(test_context, slots_to_fast_forward)
+            .await;
+    }
+    let execute_order_accounts: ExecuteOrderShimlessAccounts =
+        create_execute_order_shimless_accounts(
+            testing_context,
+            auction_accounts,
+            &payer_signer,
+            auction_state,
+            config,
+        );
+    let execute_order_instruction_data = ExecuteOrderShimlessInstruction {}.data();
+    let execute_order_ix = Instruction {
+        program_id: testing_context.get_matching_engine_program_id(),
+        accounts: execute_order_accounts.to_account_metas(None),
+        data: execute_order_instruction_data,
+    };
+    let tx = Transaction::new_signed_with_payer(
+        &[execute_order_ix],
+        Some(&payer_signer.pubkey()),
+        &[&payer_signer],
+        testing_context
+            .get_new_latest_blockhash(test_context)
+            .await
+            .unwrap(),
+    );
+    let expected_error = config.expected_error();
+    testing_context
+        .execute_and_verify_transaction(test_context, tx, expected_error)
+        .await;
+    if config.expected_error.is_none() {
+        let order_executed_state = OrderExecutedState {
+            cctp_message: execute_order_accounts.cctp_message,
+            post_message_sequence: None,
+            post_message_message: None,
+            actor_enum: config.actor_enum,
+        };
+        TestingEngineState::OrderExecuted {
+            base: current_state.base().clone(),
+            initialized: current_state.initialized().unwrap().clone(),
+            router_endpoints: current_state.router_endpoints().unwrap().clone(),
+            fast_market_order: current_state.fast_market_order().cloned(),
+            auction_state: current_state.auction_state().clone(),
+            order_executed: order_executed_state,
+            auction_accounts: auction_accounts.clone(),
+            order_prepared: current_state.order_prepared().cloned(),
+        }
+    } else {
+        current_state.clone()
+    }
 }
 
-pub fn create_execute_order_shimless_accounts(
+/// Create execute order shimless accounts
+///
+/// Helper function to create the accounts needed for the execute order instruction
+///
+/// # Arguments
+///
+/// * `testing_context`: The testing context
+/// * `auction_accounts`: The auction accounts
+/// * `payer_signer`: The payer signer
+/// * `auction_state`: The auction state
+/// * `config`: The execute order instruction config
+///
+/// # Returns
+///
+/// The execute order shimless accounts
+fn create_execute_order_shimless_accounts(
     testing_context: &TestingContext,
-    fixture_accounts: &FixtureAccounts,
     auction_accounts: &AuctionAccounts,
     payer_signer: &Rc<Keypair>,
     auction_state: &AuctionState,
-    executor_token: Pubkey,
+    config: &ExecuteOrderInstructionConfig,
 ) -> ExecuteOrderShimlessAccounts {
+    let fixture_accounts = testing_context
+        .get_fixture_accounts()
+        .expect("Fixture accounts not found");
+    let executor_token = config
+        .actor_enum
+        .get_actor(&testing_context.testing_actors)
+        .token_account_address(&config.token_enum)
+        .unwrap_or_else(|| {
+            auction_state
+                .get_active_auction()
+                .unwrap()
+                .best_offer
+                .offer_token
+        });
     let active_auction_state = auction_state.get_active_auction().unwrap();
     let active_auction_address = active_auction_state.auction_address;
     let active_auction_custody_token = active_auction_state.auction_custody_token_address;
@@ -150,72 +255,5 @@ pub fn create_execute_order_shimless_accounts(
         event_authority,
         program: testing_context.get_matching_engine_program_id(),
         sysvars,
-    }
-}
-
-pub async fn execute_order_shimless_test(
-    testing_context: &TestingContext,
-    test_context: &mut ProgramTestContext,
-    config: &ExecuteOrderInstructionConfig,
-    auction_accounts: &AuctionAccounts,
-    auction_state: &AuctionState,
-    expected_error: Option<&ExpectedError>,
-) -> Option<ExecuteOrderShimlessFixture> {
-    let payer_signer = config
-        .payer_signer
-        .clone()
-        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
-    let slots_to_fast_forward = config.fast_forward_slots;
-    if slots_to_fast_forward > 0 {
-        crate::testing_engine::engine::fast_forward_slots(test_context, slots_to_fast_forward)
-            .await;
-    }
-    let executor_token = config
-        .actor_enum
-        .get_actor(&testing_context.testing_actors)
-        .token_account_address(&config.token_enum)
-        .unwrap_or_else(|| {
-            auction_state
-                .get_active_auction()
-                .unwrap()
-                .best_offer
-                .offer_token
-        });
-    let fixture_accounts = testing_context
-        .get_fixture_accounts()
-        .expect("Fixture accounts not found");
-    let execute_order_accounts: ExecuteOrderShimlessAccounts =
-        create_execute_order_shimless_accounts(
-            testing_context,
-            &fixture_accounts,
-            auction_accounts,
-            &payer_signer,
-            auction_state,
-            executor_token,
-        );
-    let execute_order_instruction_data = ExecuteOrderShimlessInstruction {}.data();
-    let execute_order_ix = Instruction {
-        program_id: testing_context.get_matching_engine_program_id(),
-        accounts: execute_order_accounts.to_account_metas(None),
-        data: execute_order_instruction_data,
-    };
-    let tx = Transaction::new_signed_with_payer(
-        &[execute_order_ix],
-        Some(&payer_signer.pubkey()),
-        &[&payer_signer],
-        testing_context
-            .get_new_latest_blockhash(test_context)
-            .await
-            .unwrap(),
-    );
-    testing_context
-        .execute_and_verify_transaction(test_context, tx, expected_error)
-        .await;
-    if expected_error.is_none() {
-        Some(ExecuteOrderShimlessFixture {
-            cctp_message: execute_order_accounts.cctp_message,
-        })
-    } else {
-        None
     }
 }

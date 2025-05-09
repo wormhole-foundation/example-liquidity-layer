@@ -1,6 +1,6 @@
 use crate::testing_engine::config::{InstructionConfig, PrepareOrderResponseInstructionConfig};
 use crate::testing_engine::setup::{TestingContext, TransferDirection};
-use crate::testing_engine::state::TestingEngineState;
+use crate::testing_engine::state::{OrderPreparedState, TestingEngineState};
 use crate::utils;
 use crate::utils::cctp_message::UsedNonces;
 use anchor_lang::InstructionData;
@@ -23,12 +23,6 @@ use solana_sdk::signature::Signer;
 use solana_sdk::transaction::Transaction;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
-pub struct PrepareOrderResponseFixture {
-    pub prepared_order_response: Pubkey,
-    pub prepared_custody_token: Pubkey,
-    pub base_fee_token: Pubkey,
-}
-
 /// Prepare an order response (shimless)
 ///
 /// Prepare an order response by providing a fast market order.
@@ -43,14 +37,13 @@ pub struct PrepareOrderResponseFixture {
 ///
 /// # Returns
 ///
-/// The prepared order response fixture if successful, otherwise None
+/// The new state after the prepare order response instruction is executed
 pub async fn prepare_order_response(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     config: &PrepareOrderResponseInstructionConfig,
     current_state: &TestingEngineState,
-    base_fee_token_address: &Pubkey,
-) -> Option<PrepareOrderResponseFixture> {
+) -> TestingEngineState {
     let auction_accounts = config
         .overwrite_auction_accounts
         .as_ref()
@@ -59,14 +52,94 @@ pub async fn prepare_order_response(
                 .auction_accounts()
                 .expect("Auction accounts not found")
         });
+
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
+    let (prepare_order_response_ix, order_prepared_state) =
+        prepare_order_response_shimless_instruction(
+            testing_context,
+            test_context,
+            config,
+            current_state,
+        )
+        .await;
+
+    let transaction = Transaction::new_signed_with_payer(
+        &[prepare_order_response_ix],
+        Some(&payer_signer.pubkey()),
+        &[&payer_signer],
+        testing_context
+            .get_new_latest_blockhash(test_context)
+            .await
+            .expect("Failed to get new blockhash"),
+    );
+    let expected_error = config.expected_error();
+    let expected_log_messages = config.expected_log_messages();
+    if let Some(expected_log_messages) = expected_log_messages {
+        testing_context
+            .simulate_and_verify_logs(test_context, transaction, expected_log_messages)
+            .await
+            .unwrap();
+    } else {
+        testing_context
+            .execute_and_verify_transaction(test_context, transaction, expected_error)
+            .await;
+    }
+    if config.expected_error.is_none() {
+        TestingEngineState::OrderPrepared {
+            base: current_state.base().clone(),
+            initialized: current_state.initialized().unwrap().clone(),
+            router_endpoints: current_state.router_endpoints().unwrap().clone(),
+            fast_market_order: current_state.fast_market_order().cloned(),
+            auction_state: current_state.auction_state().clone(),
+            order_prepared: order_prepared_state,
+            auction_accounts: auction_accounts.clone(),
+        }
+    } else {
+        current_state.clone()
+    }
+}
+
+/// Create the prepare order response instruction and order prepared state
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `config` - The prepare order response instruction config
+/// * `current_state` - The current state
+///
+/// # Returns
+///
+/// The prepare order response instruction and order prepared state
+pub async fn prepare_order_response_shimless_instruction(
+    testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
+    config: &PrepareOrderResponseInstructionConfig,
+    current_state: &TestingEngineState,
+) -> (Instruction, OrderPreparedState) {
+    let auction_accounts = config
+        .overwrite_auction_accounts
+        .as_ref()
+        .unwrap_or_else(|| {
+            current_state
+                .auction_accounts()
+                .expect("Auction accounts not found")
+        });
+    let base_fee_token_address = config
+        .actor_enum
+        .get_actor(&testing_context.testing_actors)
+        .token_account_address(&config.token_enum)
+        .expect("Token account does not exist for solver at index");
     let to_endpoint_address = &auction_accounts.to_router_endpoint;
     let from_endpoint_address = &auction_accounts.from_router_endpoint;
     let payer_signer = config
         .payer_signer
         .clone()
         .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
-    let expected_error = config.expected_error();
-    let expected_log_messages = config.expected_log_messages();
+
     let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
     let usdc_mint_address = &testing_context.get_usdc_mint_address();
     let cctp_mint_recipient = &testing_context.get_cctp_mint_recipient();
@@ -194,7 +267,7 @@ pub async fn prepare_order_response(
         finalized_vaa,
         prepared_order_response: prepared_order_response_pda,
         prepared_custody_token: prepared_custody_token_pda,
-        base_fee_token: *base_fee_token_address,
+        base_fee_token: base_fee_token_address,
         usdc,
         cctp,
         token_program: spl_token::ID,
@@ -209,38 +282,16 @@ pub async fn prepare_order_response(
     }
     .data();
 
-    let instruction = Instruction {
+    let ix = Instruction {
         program_id: *matching_engine_program_id,
         accounts: prepared_order_response_accounts.to_account_metas(None),
         data: prepare_order_response_ix_data,
     };
-
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&payer_signer.pubkey()),
-        &[&payer_signer],
-        testing_context
-            .get_new_latest_blockhash(test_context)
-            .await
-            .expect("Failed to get new blockhash"),
-    );
-    if let Some(expected_log_messages) = expected_log_messages {
-        testing_context
-            .simulate_and_verify_logs(test_context, transaction, expected_log_messages)
-            .await
-            .unwrap();
-    } else {
-        testing_context
-            .execute_and_verify_transaction(test_context, transaction, expected_error)
-            .await;
-    }
-    if expected_error.is_none() {
-        Some(PrepareOrderResponseFixture {
-            prepared_order_response: prepared_order_response_pda,
-            prepared_custody_token: prepared_custody_token_pda,
-            base_fee_token: *base_fee_token_address,
-        })
-    } else {
-        None
-    }
+    let order_prepared_state = OrderPreparedState {
+        prepared_order_response_address: prepared_order_response_pda,
+        prepared_custody_token: prepared_custody_token_pda,
+        base_fee_token: base_fee_token_address,
+        actor_enum: config.actor_enum,
+    };
+    (ix, order_prepared_state)
 }

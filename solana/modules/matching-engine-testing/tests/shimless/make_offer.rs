@@ -1,11 +1,6 @@
-use std::rc::Rc;
-
-use crate::testing_engine::config::ExpectedError;
 use crate::testing_engine::config::ImproveOfferInstructionConfig;
 use crate::testing_engine::config::InstructionConfig;
 use crate::testing_engine::config::PlaceInitialOfferInstructionConfig;
-use crate::testing_engine::setup::TestingActor;
-use crate::testing_engine::state::InitialOfferPlacedState;
 use crate::testing_engine::state::TestingEngineState;
 use crate::utils::auction::AuctionAccounts;
 
@@ -26,7 +21,6 @@ use matching_engine::instruction::{
 use matching_engine::state::Auction;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
-use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
 use solana_sdk::transaction::Transaction;
 use utils::auction::{ActiveAuctionState, AuctionOffer, AuctionState};
@@ -37,23 +31,20 @@ use utils::auction::{ActiveAuctionState, AuctionOffer, AuctionState};
 ///
 /// # Arguments
 ///
-/// * `testing_context` - The testing context
-/// * `test_context` - The test context
-/// * `accounts` - The auction accounts
-/// * `fast_market_order` - The fast market order
-/// * `offer_price` - The price of the offer
-/// * `payer_signer` - The payer signer
-/// * `expected_error` - The expected error
+/// * `testing_context`: The testing context of the testing engine
+/// * `test_context`: Mutable reference to the program test context
+/// * `current_state`: The current state of the testing engine
+/// * `config`: The configuration for the place initial offer instruction
 ///
 /// # Returns
 ///
-/// The new auction state if successful, otherwise the old auction state
+/// The new state of the testing engine (if successful), otherwise the old state.
 pub async fn place_initial_offer_shimless(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     current_state: &TestingEngineState,
     config: &PlaceInitialOfferInstructionConfig,
-) -> Option<InitialOfferPlacedState> {
+) -> TestingEngineState {
     let payer_signer = config
         .payer_signer
         .clone()
@@ -280,13 +271,24 @@ pub async fn place_initial_offer_shimless(
             config.spl_token_enum.clone(),
             current_state.base().transfer_direction,
         );
-        Some(InitialOfferPlacedState {
+
+        auction_state
+            .get_active_auction()
+            .unwrap()
+            .verify_auction(&testing_context, test_context)
+            .await
+            .expect("Could not verify auction state");
+        return TestingEngineState::InitialOfferPlaced {
+            base: current_state.base().clone(),
+            initialized: current_state.initialized().unwrap().clone(),
+            router_endpoints: current_state.router_endpoints().unwrap().clone(),
+            fast_market_order: current_state.fast_market_order().cloned(),
             auction_state,
             auction_accounts,
-        })
-    } else {
-        None
+            order_prepared: current_state.order_prepared().cloned(),
+        };
     }
+    current_state.clone()
 }
 
 /// Improve an offer (shimless)
@@ -295,26 +297,26 @@ pub async fn place_initial_offer_shimless(
 ///
 /// # Arguments
 ///
-/// * `testing_context` - The testing context
-/// * `test_context` - The test context
-/// * `solver` - The solver
-/// * `offer_price` - The new price
-/// * `payer_signer` - The payer signer
-/// * `initial_auction_state` - The initial auction state
-/// * `expected_error` - The expected error
+/// * `testing_context`: The testing context of the testing engine
+/// * `test_context`: Mutable reference to the program test context
+/// * `current_state`: The current state of the testing engine
+/// * `config`: The configuration for the improve offer instruction
 ///
 /// # Returns
 ///
-/// The new auction state if successful, otherwise the old auction state
+/// The new state of the testing engine
 pub async fn improve_offer(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    actor: &TestingActor,
+    current_state: &TestingEngineState,
     config: &ImproveOfferInstructionConfig,
-    payer_signer: &Rc<Keypair>,
-    initial_auction_state: &AuctionState,
-    expected_error: Option<&ExpectedError>,
-) -> AuctionState {
+) -> TestingEngineState {
+    let initial_auction_state = current_state.auction_state();
+    let actor = config.actor.get_actor(&testing_context.testing_actors);
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
     let program_id = testing_context.get_matching_engine_program_id();
     let active_auction_state = initial_auction_state.get_active_auction().unwrap();
     let auction_config = active_auction_state.auction_config_address;
@@ -376,13 +378,14 @@ pub async fn improve_offer(
     let tx = Transaction::new_signed_with_payer(
         &[improve_offer_ix_anchor],
         Some(&payer_signer.pubkey()),
-        &[payer_signer],
+        &[&payer_signer],
         testing_context
             .get_new_latest_blockhash(test_context)
             .await
             .unwrap(),
     );
 
+    let expected_error = config.expected_error();
     testing_context
         .execute_and_verify_transaction(test_context, tx, expected_error)
         .await;
@@ -393,7 +396,7 @@ pub async fn improve_offer(
             .get_active_auction()
             .unwrap()
             .initial_offer;
-        AuctionState::Active(Box::new(ActiveAuctionState {
+        let new_auction_state = AuctionState::Active(Box::new(ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
             auction_config_address: auction_config,
@@ -405,8 +408,23 @@ pub async fn improve_offer(
                 offer_price,
             },
             spl_token_enum: spl_token_enum.clone(),
-        }))
-    } else {
-        initial_auction_state.clone()
+        }));
+
+        new_auction_state
+            .get_active_auction()
+            .unwrap()
+            .verify_auction(&testing_context, test_context)
+            .await
+            .expect("Could not verify auction state");
+        return TestingEngineState::OfferImproved {
+            base: current_state.base().clone(),
+            initialized: current_state.initialized().unwrap().clone(),
+            router_endpoints: current_state.router_endpoints().unwrap().clone(),
+            fast_market_order: current_state.fast_market_order().cloned(),
+            auction_state: new_auction_state,
+            auction_accounts: current_state.auction_accounts().cloned(),
+            order_prepared: current_state.order_prepared().cloned(),
+        };
     }
+    current_state.clone()
 }

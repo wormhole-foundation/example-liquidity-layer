@@ -44,7 +44,6 @@ use crate::shimful::verify_shim::create_guardian_signatures;
 use crate::shimless;
 use crate::shimless::initialize::initialize_program;
 use crate::testing_engine::setup::ShimMode;
-use crate::utils::auction::AuctionState;
 use crate::utils::token_account::SplTokenEnum;
 use crate::utils::vaa::TestVaaPairs;
 use crate::utils::{auction::AuctionAccounts, router::create_all_router_endpoints_test};
@@ -552,35 +551,13 @@ impl TestingEngine {
             current_state.router_endpoints().is_some(),
             "Router endpoints are not created"
         );
-
-        let initial_offer_placed_state = shimless::make_offer::place_initial_offer_shimless(
+        shimless::make_offer::place_initial_offer_shimless(
             &self.testing_context,
             test_context,
             current_state,
             config,
         )
-        .await;
-        if config.expected_error().is_none() {
-            let initial_offer_placed_state = initial_offer_placed_state.unwrap();
-            let auction_state = initial_offer_placed_state.auction_state;
-            let auction_accounts = initial_offer_placed_state.auction_accounts;
-            auction_state
-                .get_active_auction()
-                .unwrap()
-                .verify_auction(&self.testing_context, test_context)
-                .await
-                .expect("Could not verify auction state");
-            return TestingEngineState::InitialOfferPlaced {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state,
-                auction_accounts,
-                order_prepared: current_state.order_prepared().cloned(),
-            };
-        }
-        current_state.clone()
+        .await
     }
 
     /// Instruction trigger function for improving an offer
@@ -590,34 +567,13 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &ImproveOfferInstructionConfig,
     ) -> TestingEngineState {
-        let expected_error = config.expected_error();
-        let actor = config.actor.get_actor(&self.testing_context.testing_actors);
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
-        let new_auction_state = shimless::make_offer::improve_offer(
+        shimless::make_offer::improve_offer(
             &self.testing_context,
             test_context,
-            &actor,
+            current_state,
             config,
-            &payer_signer,
-            current_state.auction_state(),
-            expected_error,
         )
-        .await;
-        if expected_error.is_none() {
-            return TestingEngineState::OfferImproved {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state: new_auction_state,
-                auction_accounts: current_state.auction_accounts().cloned(),
-                order_prepared: current_state.order_prepared().cloned(),
-            };
-        }
-        current_state.clone()
+        .await
     }
 
     /// Instruction trigger function for placing an initial offer
@@ -687,36 +643,14 @@ impl TestingEngine {
             current_state.spl_token_enum().unwrap(),
             current_state.base().transfer_direction,
         );
-        let result = shimless::execute_order::execute_order_shimless_test(
+        shimless::execute_order::execute_order_shimless(
             &self.testing_context,
             test_context,
+            current_state,
             config,
             &auction_accounts,
-            current_state.auction_state(),
-            config.expected_error(),
         )
-        .await;
-        if config.expected_error.is_none() {
-            let execute_order_fixture = result.unwrap();
-            let order_executed_state = OrderExecutedState {
-                cctp_message: execute_order_fixture.cctp_message,
-                post_message_sequence: None,
-                post_message_message: None,
-                actor_enum: config.actor_enum,
-            };
-            TestingEngineState::OrderExecuted {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state: current_state.auction_state().clone(),
-                order_executed: order_executed_state,
-                auction_accounts: auction_accounts.clone(),
-                order_prepared: current_state.order_prepared().cloned(),
-            }
-        } else {
-            current_state.clone()
-        }
+        .await
     }
 
     /// Instruction trigger function for preparing an order
@@ -742,44 +676,13 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &PrepareOrderResponseInstructionConfig,
     ) -> TestingEngineState {
-        let auction_accounts = current_state
-            .auction_accounts()
-            .expect("Auction accounts not found");
-        let solver_token_account = config
-            .actor_enum
-            .get_actor(&self.testing_context.testing_actors)
-            .token_account_address(&config.token_enum)
-            .expect("Token account does not exist for solver at index");
-        println!("Base fee token address: {:?}", solver_token_account);
-        let result = shimless::prepare_order_response::prepare_order_response(
+        shimless::prepare_order_response::prepare_order_response(
             &self.testing_context,
             test_context,
             config,
             current_state,
-            &solver_token_account,
         )
-        .await;
-        if config.expected_error.is_none() {
-            let prepare_order_response_fixture = result.unwrap();
-            let order_prepared_state = OrderPreparedState {
-                prepared_order_response_address: prepare_order_response_fixture
-                    .prepared_order_response,
-                prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
-                base_fee_token: prepare_order_response_fixture.base_fee_token,
-                actor_enum: config.actor_enum,
-            };
-            TestingEngineState::OrderPrepared {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state: current_state.auction_state().clone(),
-                order_prepared: order_prepared_state,
-                auction_accounts: auction_accounts.clone(),
-            }
-        } else {
-            current_state.clone()
-        }
+        .await
     }
 
     /// Instruction trigger function for settling an auction
@@ -789,27 +692,14 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &SettleAuctionInstructionConfig,
     ) -> TestingEngineState {
-        let auction_state = shimless::settle_auction::settle_auction_complete(
+        shimless::settle_auction::settle_auction_complete(
             &self.testing_context,
             current_state,
             test_context,
             config,
             config.expected_error(),
         )
-        .await;
-        match auction_state {
-            AuctionState::Settled => TestingEngineState::AuctionSettled {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                auction_state: current_state.auction_state().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                order_prepared: current_state.order_prepared().unwrap().clone(),
-                auction_accounts: current_state.auction_accounts().cloned(),
-                order_executed: current_state.order_executed().cloned(),
-            },
-            _ => current_state.clone(),
-        }
+        .await
     }
 
     // --------------------------------------------------------------------------------------------
