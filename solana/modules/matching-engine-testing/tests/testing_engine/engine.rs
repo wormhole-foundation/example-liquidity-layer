@@ -724,6 +724,7 @@ impl TestingEngine {
         current_state.clone()
     }
 
+    /// Verify the balances after an instruction has been executed. Currently only used for execute order instruction
     async fn verify_balances(
         &self,
         test_context: &mut ProgramTestContext,
@@ -773,6 +774,7 @@ impl TestingEngine {
     // Combination trigger functions
     // --------------------------------------------------------------------------------------------
 
+    /// A transaction that combines the instructions for creating a fast market order and placing an initial offer
     async fn create_fast_market_order_and_place_initial_offer(
         &self,
         test_context: &mut ProgramTestContext,
