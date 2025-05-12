@@ -3,7 +3,7 @@ use bytemuck::{Pod, Zeroable};
 use solana_program::{instruction::Instruction, keccak, program::invoke_signed_unchecked};
 use wormhole_svm_shim::verify_vaa;
 
-use crate::{error::MatchingEngineError, state::FastMarketOrder, ID};
+use crate::{state::FastMarketOrder, ID};
 
 pub struct InitializeFastMarketOrderAccounts<'ix> {
     /// Lamports from this signer will be used to create the new fast market

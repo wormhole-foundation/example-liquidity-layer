@@ -22,6 +22,7 @@ pub struct PlaceInitialOfferCctpShimData {
     pub offer_price: u64,
 }
 
+// TODO: Rename to "PlaceInitialOfferCctpV2Accounts".
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     /// The signer account
@@ -58,6 +59,7 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     pub token_program: &'ix Pubkey,
 }
 
+// TODO: Rename to "PlaceInitialOfferCctpV2".
 #[derive(Debug, Clone, Copy)]
 pub struct PlaceInitialOfferCctpShim<'ix> {
     pub program_id: &'ix Pubkey,
@@ -117,9 +119,9 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
     // This transfer authority must have been delegated authority to transfer
     // USDC so it can transfer tokens to the auction custody token account.
     //
-    // We will validate this transfer authority when we will transfer USDC to
-    // the auction's custody account.
-    let transfer_authority = &accounts[1];
+    // We will validate this transfer authority when we attempt to transfer USDC
+    // to the auction's custody account.
+    let _transfer_authority = &accounts[1];
 
     let custodian = super::helpers::try_custodian_account(
         &accounts[2],
@@ -157,7 +159,26 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
     );
 
     let new_auction_info = &accounts[7];
-    let new_auction_key = new_auction_info.key;
+
+    let vaa_sequence = fast_market_order.vaa_sequence;
+    let vaa_timestamp = fast_market_order.vaa_timestamp;
+    let consistency_level = fast_market_order.vaa_consistency_level;
+
+    // Generate the VAA digest. This digest is used as the seed for the newly
+    // created auction account.
+    let vaa_message_digest = super::helpers::VaaMessageBodyHeader {
+        consistency_level,
+        timestamp: vaa_timestamp,
+        sequence: vaa_sequence,
+        emitter_chain: from_endpoint_account.chain,
+        emitter_address: from_endpoint_account.address,
+    }
+    .digest(&fast_market_order);
+
+    // Derive the expected auction account key. This key is used for the auction
+    // custody token account seed.
+    let (expected_auction_key, new_auction_bump) =
+        Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_message_digest.0], &ID);
 
     // This account must be the USDC mint. This instruction does not refer to
     // this account explicitly. It just needs to exist so that we can create the
@@ -171,7 +192,6 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
     }
 
     let offer_price = data.offer_price;
-    let vaa_timestamp = fast_market_order.vaa_timestamp;
 
     // Check contents of fast_market_order
     // TODO: Use shared method that both place initial offer instructions can
@@ -196,37 +216,35 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
     let offer_token_info = &accounts[8];
     let new_auction_custody_info = &accounts[9];
 
-    // TODO: Double-check that we do not need verify the derived pubkey is
-    // correct. We shouldn't have to because the seeds are used to create the
-    // account, which will only work if the auction custody pubkey is correct.
-    let (_, new_auction_custody_bump) = Pubkey::find_program_address(
+    // We will use the expected auction custody token account key to create this
+    // account.
+    let (expected_auction_custody_key, new_auction_custody_bump) = Pubkey::find_program_address(
         &[
             crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
-            new_auction_key.as_ref(),
+            expected_auction_key.as_ref(),
         ],
         &ID,
     );
 
     super::helpers::create_usdc_token_account_reliably(
         payer_info.key,
-        new_auction_custody_info.key,
+        &expected_auction_custody_key,
         new_auction_info.key,
         new_auction_custody_info.lamports(),
         accounts,
         &[&[
             crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
-            new_auction_key.as_ref(),
+            expected_auction_key.as_ref(),
             &[new_auction_custody_bump],
         ]],
     )?;
 
-    // TODO: Double-check that we do not need verify the derived pubkey is
-    // correct. We shouldn't have to because the seeds are used to transfer
-    // tokens, which will only work if the transfer authority pubkey is correct.
-    let (_, transfer_authority_bump) = Pubkey::find_program_address(
+    // We will use the expected transfer authority account key to invoke the
+    // SPL token transfer instruction.
+    let (expected_transfer_authority_key, transfer_authority_bump) = Pubkey::find_program_address(
         &[
             TRANSFER_AUTHORITY_SEED_PREFIX,
-            new_auction_key.as_ref(),
+            expected_auction_key.as_ref(),
             &offer_price.to_be_bytes(),
         ],
         &ID,
@@ -245,7 +263,7 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
         &spl_token::ID,
         offer_token_info.key,
         new_auction_custody_info.key,
-        transfer_authority.key,
+        &expected_transfer_authority_key,
         &[],
         fast_market_order
             .amount_in
@@ -259,36 +277,16 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
         accounts,
         &[&[
             TRANSFER_AUTHORITY_SEED_PREFIX,
-            new_auction_key.as_ref(),
+            expected_auction_key.as_ref(),
             &offer_price.to_be_bytes(),
             &[transfer_authority_bump],
         ]],
     )?;
 
-    let vaa_sequence = fast_market_order.vaa_sequence;
-    let consistency_level = fast_market_order.vaa_consistency_level;
-
-    // Generate the VAA digest. This digest is used as the seed for the newly
-    // created auction account.
-    let vaa_message_digest = super::helpers::VaaMessageBodyHeader {
-        consistency_level,
-        timestamp: vaa_timestamp,
-        sequence: vaa_sequence,
-        emitter_chain: from_endpoint_account.chain,
-        emitter_address: from_endpoint_account.address,
-    }
-    .digest(&fast_market_order);
-
-    // TODO: Double-check that we do not need verify the derived pubkey is
-    // correct. We shouldn't have to because the seeds are used to create the
-    // account, which will only work if the auction pubkey is correct.
-    let (_, new_auction_bump) =
-        Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_message_digest.0], &ID);
-
     // Create the auction account and serialize its data into it.
     super::helpers::create_account_reliably(
         payer_info.key,
-        new_auction_key,
+        &expected_auction_key,
         new_auction_info.lamports(),
         8 + Auction::INIT_SPACE,
         accounts,
