@@ -109,7 +109,6 @@ pub(super) fn process(
 
     // Verify that the fast market order account's key is derived correctly.
     let new_fast_market_order_info = &accounts[1];
-    let fast_market_order_key = new_fast_market_order_info.key;
     let (expected_fast_market_order_key, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrder::SEED_PREFIX,
@@ -118,13 +117,6 @@ pub(super) fn process(
         ],
         &ID,
     );
-
-    if fast_market_order_key != &expected_fast_market_order_key {
-        return Err(MatchingEngineError::InvalidPda.into()).map_err(|e: Error| {
-            e.with_account_name("fast_market_order")
-                .with_pubkeys((*fast_market_order_key, expected_fast_market_order_key))
-        });
-    }
 
     // These accounts will be used by the Verify VAA shim program.
     let wormhole_guardian_set_info = &accounts[2];
@@ -157,7 +149,7 @@ pub(super) fn process(
 
     super::helpers::create_account_reliably(
         payer_info.key,
-        fast_market_order_key,
+        &expected_fast_market_order_key,
         new_fast_market_order_info.lamports(),
         FAST_MARKET_ORDER_DATA_LEN,
         accounts,
