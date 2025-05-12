@@ -3,7 +3,6 @@ use wormhole_svm_definitions::make_anchor_discriminator;
 
 use crate::ID;
 
-use super::execute_order::handle_execute_order_shim;
 use super::initialize_fast_market_order::InitializeFastMarketOrderData;
 use super::place_initial_offer::PlaceInitialOfferCctpShimData;
 use super::prepare_order_response::{
@@ -57,7 +56,7 @@ pub fn process_instruction(
             super::place_initial_offer::process(accounts, data)
         }
         FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
-            handle_execute_order_shim(accounts)
+            super::execute_order::process(accounts)
         }
         FallbackMatchingEngineInstruction::PrepareOrderResponseCctpShim(data) => {
             prepare_order_response_cctp_shim(accounts, data)

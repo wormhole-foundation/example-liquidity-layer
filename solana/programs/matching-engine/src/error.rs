@@ -72,6 +72,7 @@ pub enum MatchingEngineError {
     AuctionExists = 0x428,
     NoAuction = 0x429,
     BestOfferTokenMismatch = 0x42a,
+    InitialOfferTokenMismatch = 0x42b,
     BestOfferTokenRequired = 0x42c,
     PreparedByMismatch = 0x42e,
     PreparedOrderResponseNotRequired = 0x42f,

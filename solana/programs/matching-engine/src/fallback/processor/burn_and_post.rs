@@ -15,15 +15,11 @@ use wormhole_svm_definitions::solana::{
 use wormhole_svm_shim::post_message;
 
 // This is a helper struct to make it easier to pass in the accounts for the post_message instruction.
-pub struct PostMessageAccounts {
-    pub emitter: Pubkey,
-    pub payer: Pubkey,
-    pub derived: PostMessageDerivedAccounts,
-}
-
-pub struct PostMessageDerivedAccounts {
-    pub message: Pubkey,
-    pub sequence: Pubkey,
+pub struct PostMessageAccounts<'ix> {
+    pub emitter: &'ix Pubkey,
+    pub payer: &'ix Pubkey,
+    pub message: &'ix Pubkey,
+    pub sequence: &'ix Pubkey,
 }
 
 pub fn burn_and_post<'info>(
@@ -42,16 +38,23 @@ pub fn burn_and_post<'info>(
         payload,
     } = burn_and_publish_args;
 
+    let PostMessageAccounts {
+        emitter,
+        payer,
+        message,
+        sequence,
+    } = post_message_accounts;
+
     // Post message to the shim program
     let post_message_ix = post_message::PostMessage {
         program_id: &POST_MESSAGE_SHIM_PROGRAM_ID,
         accounts: post_message::PostMessageAccounts {
-            emitter: &post_message_accounts.emitter,
-            payer: &post_message_accounts.payer,
+            emitter,
+            payer,
             wormhole_program_id: &CORE_BRIDGE_PROGRAM_ID,
             derived: post_message::PostMessageDerivedAccounts {
-                message: Some(&post_message_accounts.derived.message),
-                sequence: Some(&post_message_accounts.derived.sequence),
+                message: Some(&message),
+                sequence: Some(&sequence),
                 core_bridge_config: Some(&CORE_BRIDGE_CONFIG),
                 fee_collector: Some(&CORE_BRIDGE_FEE_COLLECTOR),
                 event_authority: Some(&POST_MESSAGE_SHIM_EVENT_AUTHORITY),
