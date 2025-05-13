@@ -239,6 +239,84 @@ pub async fn test_settle_auction_base_fee_token_not_best_offer_actor() {
         .await;
 }
 
+/// Test settle auction none shim
+#[tokio::test]
+pub async fn test_settle_auction_none_shimful() {
+    let (mut test_context, prepared_order_state, testing_engine, _initial_balances) =
+        Box::pin(helpers::prepare_settle_auction_none_shimful()).await;
+    let instruction_triggers = vec![InstructionTrigger::SettleAuctionNoneShim(
+        SettleAuctionNoneInstructionConfig::default(),
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(prepared_order_state),
+        )
+        .await;
+}
+
+/// Test settle auction none shimless
+#[tokio::test]
+pub async fn test_settle_auction_none_shimless() {
+    let (mut test_context, prepared_order_state, testing_engine, _initial_balances) =
+        Box::pin(helpers::prepare_settle_auction_none_cctp_shimless()).await;
+    let instruction_triggers = vec![InstructionTrigger::SettleAuctionNoneShimless(
+        SettleAuctionNoneInstructionConfig::default(),
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(prepared_order_state),
+        )
+        .await;
+}
+
+/// Test that balance changes are comparable between shim and shimless
+#[tokio::test]
+pub async fn test_settle_auction_none_balance_changes_comparable() {
+    let balance_changes_shimful = {
+        let (mut test_context, prepared_order_state, testing_engine, initial_balances) =
+            Box::pin(helpers::prepare_settle_auction_none_shimful()).await;
+        let instruction_triggers = vec![InstructionTrigger::SettleAuctionNoneShim(
+            SettleAuctionNoneInstructionConfig::default(),
+        )];
+        testing_engine
+            .execute(
+                &mut test_context,
+                instruction_triggers,
+                Some(prepared_order_state),
+            )
+            .await;
+        let final_balances = testing_engine
+            .testing_context
+            .get_balances(&mut test_context)
+            .await;
+        BalanceChanges::from((&initial_balances, &final_balances))
+    };
+    let balance_changes_shimless = {
+        let (mut test_context, prepared_order_state, testing_engine, initial_balances) =
+            Box::pin(helpers::prepare_settle_auction_none_cctp_shimless()).await;
+        let instruction_triggers = vec![InstructionTrigger::SettleAuctionNoneShimless(
+            SettleAuctionNoneInstructionConfig::default(),
+        )];
+        testing_engine
+            .execute(
+                &mut test_context,
+                instruction_triggers,
+                Some(prepared_order_state),
+            )
+            .await;
+        let final_balances = testing_engine
+            .testing_context
+            .get_balances(&mut test_context)
+            .await;
+        BalanceChanges::from((&initial_balances, &final_balances))
+    };
+    helpers::compare_balance_changes(&balance_changes_shimful, &balance_changes_shimless);
+}
+
 /*
                     Sad path tests section
 
@@ -322,10 +400,39 @@ pub async fn test_settle_auction_non_existent() {
         .await;
 }
 
+/// Test cannot settle auction none if place initial offer is made
+#[tokio::test]
+pub async fn test_cannot_settle_auction_none_shim_after_place_initial_offer() {
+    let (mut test_context, prepared_order_state, testing_engine, _initial_balances) =
+        Box::pin(helpers::prepare_settle_auction_none_shimful()).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+        InstructionTrigger::SettleAuctionNoneShim(SettleAuctionNoneInstructionConfig {
+            expected_error: Some(ExpectedError {
+                instruction_index: 0,
+                error_code: 0,
+                error_string: "Account In Use".to_string(),
+            }),
+            ..SettleAuctionNoneInstructionConfig::default()
+        }),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(prepared_order_state),
+        )
+        .await;
+}
+
 /*
 Helper code
 */
 mod helpers {
+    use solana_program_test::ProgramTestContext;
+
+    use crate::testing_engine::{setup::Balances, state::TestingEngineState};
+
     use super::*;
 
     pub async fn balance_changes_shim() -> BalanceChanges {
@@ -526,5 +633,125 @@ mod helpers {
             shim.get(&TestingActorEnum::Solver(0)).unwrap().usdc,
             "Solver 0 balance change should be the same for both shim and shimless"
         );
+    }
+
+    /// Prepares testing engine state for settle auction none shimful
+    /// Returns:
+    /// - ProgramTestContext
+    /// - TestingEngineState
+    /// - TestingEngine
+    /// - Initial balances
+    pub async fn prepare_settle_auction_none_shimful() -> (
+        ProgramTestContext,
+        TestingEngineState,
+        TestingEngine,
+        Balances,
+    ) {
+        let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+        let (testing_context, mut test_context) = setup_environment(
+            ShimMode::VerifyAndPostSignature,
+            transfer_direction,
+            Some(vec![VaaArgs::default()]),
+        )
+        .await;
+        let testing_engine = TestingEngine::new(testing_context).await;
+
+        let instruction_triggers = vec![
+            InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+            InstructionTrigger::CreateCctpRouterEndpoints(
+                CreateCctpRouterEndpointsInstructionConfig::default(),
+            ),
+        ];
+        let initial_state_balances = testing_engine
+            .testing_context
+            .get_balances(&mut test_context)
+            .await;
+        let create_cctp_router_endpoints_state = testing_engine
+            .execute(&mut test_context, instruction_triggers, None)
+            .await;
+
+        // This is just needed to get the router endpoint accounts when prepare order happens before place initial offer, it is not used for anything else
+        let fake_auction_accounts = AuctionAccounts::fake_auction_accounts(
+            &create_cctp_router_endpoints_state,
+            &testing_engine.testing_context,
+        );
+        let instruction_triggers = vec![
+            InstructionTrigger::InitializeFastMarketOrderShim(
+                InitializeFastMarketOrderShimInstructionConfig::default(),
+            ),
+            InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig {
+                overwrite_auction_accounts: Some(fake_auction_accounts),
+                ..Default::default()
+            }),
+        ];
+        let prepare_order_state = testing_engine
+            .execute(
+                &mut test_context,
+                instruction_triggers,
+                Some(create_cctp_router_endpoints_state),
+            )
+            .await;
+        (
+            test_context,
+            prepare_order_state,
+            testing_engine,
+            initial_state_balances,
+        )
+    }
+
+    pub async fn prepare_settle_auction_none_cctp_shimless() -> (
+        ProgramTestContext,
+        TestingEngineState,
+        TestingEngine,
+        Balances,
+    ) {
+        let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+        let (testing_context, mut test_context) = setup_environment(
+            ShimMode::None,
+            transfer_direction,
+            Some(vec![VaaArgs {
+                post_vaa: true,
+                ..VaaArgs::default()
+            }]),
+        )
+        .await;
+        let testing_engine = TestingEngine::new(testing_context).await;
+
+        let instruction_triggers = vec![
+            InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+            InstructionTrigger::CreateCctpRouterEndpoints(
+                CreateCctpRouterEndpointsInstructionConfig::default(),
+            ),
+        ];
+        let initial_state_balances = testing_engine
+            .testing_context
+            .get_balances(&mut test_context)
+            .await;
+        let create_cctp_router_endpoints_state = testing_engine
+            .execute(&mut test_context, instruction_triggers, None)
+            .await;
+        let fake_auction_accounts = AuctionAccounts::fake_auction_accounts(
+            &create_cctp_router_endpoints_state,
+            &testing_engine.testing_context,
+        );
+        let instruction_triggers = vec![InstructionTrigger::PrepareOrderShimless(
+            PrepareOrderResponseInstructionConfig {
+                overwrite_auction_accounts: Some(fake_auction_accounts),
+                ..Default::default()
+            },
+        )];
+        let prepare_order_state = testing_engine
+            .execute(
+                &mut test_context,
+                instruction_triggers,
+                Some(create_cctp_router_endpoints_state),
+            )
+            .await;
+        (
+            test_context,
+            prepare_order_state,
+            testing_engine,
+            initial_state_balances,
+        )
     }
 }

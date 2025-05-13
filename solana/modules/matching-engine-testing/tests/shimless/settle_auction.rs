@@ -62,6 +62,7 @@ pub async fn settle_auction_complete(
         prepared_custody_token,
         base_fee_token,
         actor_enum: _,
+        prepared_by: _,
     } = *order_prepared_state;
 
     let matching_engine_program_id = testing_context.get_matching_engine_program_id();

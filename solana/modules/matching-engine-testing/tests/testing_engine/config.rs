@@ -400,6 +400,21 @@ impl InstructionConfig for ImproveOfferInstructionConfig {
         self.expected_log_messages.as_ref()
     }
 }
+#[derive(Default)]
+pub struct SettleAuctionNoneInstructionConfig {
+    pub payer_signer: Option<Rc<Keypair>>,
+    pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
+}
+
+impl InstructionConfig for SettleAuctionNoneInstructionConfig {
+    fn expected_error(&self) -> Option<&ExpectedError> {
+        self.expected_error.as_ref()
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
+    }
+}
 
 pub struct VerifyBalancesConfig {
     pub previous_state_balances: Balances,

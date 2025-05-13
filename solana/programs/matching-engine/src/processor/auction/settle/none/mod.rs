@@ -22,10 +22,10 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
     token_program: &'ctx Program<'info, token::Token>,
 }
 
-struct SettledNone {
-    user_amount: u64,
-    fill: Fill,
-    auction_settled_event: AuctionSettled,
+pub struct SettledNone {
+    pub user_amount: u64,
+    pub fill: Fill,
+    pub auction_settled_event: AuctionSettled,
 }
 
 fn settle_none_and_prepare_fill(accounts: SettleNoneAndPrepareFill<'_, '_>) -> Result<SettledNone> {

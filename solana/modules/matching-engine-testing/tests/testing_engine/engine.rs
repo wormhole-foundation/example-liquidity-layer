@@ -44,6 +44,7 @@ use crate::shimful::verify_shim::create_guardian_signatures;
 use crate::shimless;
 use crate::shimless::initialize::initialize_program;
 use crate::testing_engine::setup::ShimMode;
+use crate::utils::auction::AuctionState;
 use crate::utils::token_account::SplTokenEnum;
 use crate::utils::vaa::TestVaaPairs;
 use crate::utils::{auction::AuctionAccounts, router::create_all_router_endpoints_test};
@@ -63,6 +64,8 @@ pub enum InstructionTrigger {
     PrepareOrderShim(PrepareOrderResponseInstructionConfig),
     SettleAuction(SettleAuctionInstructionConfig),
     CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig),
+    SettleAuctionNoneShim(SettleAuctionNoneInstructionConfig),
+    SettleAuctionNoneShimless(SettleAuctionNoneInstructionConfig),
 }
 
 pub enum VerificationTrigger {
@@ -180,6 +183,8 @@ impl InstructionConfig for InstructionTrigger {
             Self::PrepareOrderShim(config) => config.expected_error(),
             Self::SettleAuction(config) => config.expected_error(),
             Self::CloseFastMarketOrderShim(config) => config.expected_error(),
+            Self::SettleAuctionNoneShim(config) => config.expected_error(),
+            Self::SettleAuctionNoneShimless(config) => config.expected_error(),
         }
     }
     fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
@@ -197,6 +202,8 @@ impl InstructionConfig for InstructionTrigger {
             Self::PrepareOrderShimless(config) => config.expected_log_messages(),
             Self::SettleAuction(config) => config.expected_log_messages(),
             Self::CloseFastMarketOrderShim(config) => config.expected_log_messages(),
+            Self::SettleAuctionNoneShim(config) => config.expected_log_messages(),
+            Self::SettleAuctionNoneShimless(config) => config.expected_log_messages(),
         }
     }
 }
@@ -359,6 +366,14 @@ impl TestingEngine {
                 }
                 InstructionTrigger::SettleAuction(ref config) => {
                     self.settle_auction(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::SettleAuctionNoneShim(ref config) => {
+                    self.settle_auction_none_shim(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::SettleAuctionNoneShimless(ref config) => {
+                    self.settle_auction_none_shimless(test_context, current_state, config)
                         .await
                 }
             },
@@ -700,6 +715,63 @@ impl TestingEngine {
             config.expected_error(),
         )
         .await
+    }
+    /// Instruction trigger function for settling an auction none shim
+    async fn settle_auction_none_shim(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        config: &SettleAuctionNoneInstructionConfig,
+    ) -> TestingEngineState {
+        let auction_state = shimful::shims_settle_auction_none_cctp::settle_auction_none_shimful(
+            &self.testing_context,
+            test_context,
+            current_state,
+            config,
+        )
+        .await;
+        match auction_state {
+            AuctionState::Settled(auction_state) => TestingEngineState::AuctionSettled {
+                base: current_state.base().clone(),
+                initialized: current_state.initialized().unwrap().clone(),
+                router_endpoints: current_state.router_endpoints().unwrap().clone(),
+                auction_state: AuctionState::Settled(auction_state.clone()),
+                fast_market_order: current_state.fast_market_order().cloned(),
+                order_prepared: current_state.order_prepared().unwrap().clone(),
+                auction_accounts: current_state.auction_accounts().cloned(),
+                order_executed: current_state.order_executed().cloned(),
+            },
+            _ => current_state.clone(),
+        }
+    }
+
+    /// Instruction trigger function for settling an auction none shimless
+    async fn settle_auction_none_shimless(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        config: &SettleAuctionNoneInstructionConfig,
+    ) -> TestingEngineState {
+        let auction_state = shimless::settle_auction_none_cctp::settle_auction_none_shimless(
+            &self.testing_context,
+            current_state,
+            test_context,
+            config,
+        )
+        .await;
+        match auction_state {
+            AuctionState::Settled(auction_state) => TestingEngineState::AuctionSettled {
+                base: current_state.base().clone(),
+                initialized: current_state.initialized().unwrap().clone(),
+                router_endpoints: current_state.router_endpoints().unwrap().clone(),
+                auction_state: AuctionState::Settled(auction_state.clone()),
+                fast_market_order: current_state.fast_market_order().cloned(),
+                order_prepared: current_state.order_prepared().unwrap().clone(),
+                auction_accounts: current_state.auction_accounts().cloned(),
+                order_executed: current_state.order_executed().cloned(),
+            },
+            _ => current_state.clone(),
+        }
     }
 
     // --------------------------------------------------------------------------------------------

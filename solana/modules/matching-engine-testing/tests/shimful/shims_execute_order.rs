@@ -7,6 +7,7 @@ use anchor_spl::token::spl_token;
 use common::wormhole_cctp_solana::cctp::{
     MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID,
 };
+use matching_engine::accounts::CctpDepositForBurn;
 use matching_engine::fallback::execute_order::{ExecuteOrderCctpShim, ExecuteOrderShimAccounts};
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{pubkey::Pubkey, signer::Signer, sysvar::SysvarId};

@@ -88,6 +88,7 @@ pub struct OrderPreparedState {
     pub prepared_custody_token: Pubkey,
     pub base_fee_token: Pubkey,
     pub actor_enum: TestingActorEnum,
+    pub prepared_by: Pubkey,
 }
 
 #[derive(Clone)]

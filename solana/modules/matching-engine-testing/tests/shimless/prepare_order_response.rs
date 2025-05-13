@@ -292,6 +292,7 @@ pub async fn prepare_order_response_shimless_instruction(
         prepared_custody_token: prepared_custody_token_pda,
         base_fee_token: base_fee_token_address,
         actor_enum: config.actor_enum,
+        prepared_by: payer_signer.pubkey(),
     };
     (ix, order_prepared_state)
 }
