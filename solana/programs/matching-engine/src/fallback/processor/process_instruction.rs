@@ -88,13 +88,9 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
                 Some(Self::ExecuteOrderCctpShim)
             }
             FallbackMatchingEngineInstruction::PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR => {
-                // TODO: Fix this
-                Some(Self::PrepareOrderResponseCctpShim(
-                    PrepareOrderResponseCctpShimData::from_bytes(
-                        &instruction_data[SELECTOR_SIZE..],
-                    )
-                    .unwrap(),
-                ))
+                borsh::BorshDeserialize::deserialize(&mut &instruction_data[SELECTOR_SIZE..])
+                    .ok()
+                    .map(Self::PrepareOrderResponseCctpShim)
             }
             _ => None,
         }
