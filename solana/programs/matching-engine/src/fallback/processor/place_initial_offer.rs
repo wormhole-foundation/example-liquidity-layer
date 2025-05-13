@@ -6,6 +6,7 @@ use solana_program::{instruction::Instruction, program::invoke_signed_unchecked}
 
 use crate::{
     error::MatchingEngineError,
+    processor::calculate_security_deposit,
     state::{Auction, AuctionInfo, AuctionStatus, MessageProtocol},
     ID,
 };
@@ -261,11 +262,10 @@ pub(super) fn process(
 
     // The total amount being transferred to the auction's custody token account
     // is the order's amount and auction participant's security deposit.
-    let security_deposit = fast_market_order.max_fee.saturating_add(
-        crate::utils::auction::compute_notional_security_deposit(
-            &auction_config,
-            fast_market_order.amount_in,
-        ),
+    let security_deposit = calculate_security_deposit(
+        fast_market_order.max_fee,
+        fast_market_order.amount_in,
+        &auction_config,
     );
 
     let transfer_ix = spl_token::instruction::transfer(

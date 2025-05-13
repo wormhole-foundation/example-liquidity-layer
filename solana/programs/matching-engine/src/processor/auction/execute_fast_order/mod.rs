@@ -105,12 +105,12 @@ pub struct ActiveAuctionAccountInfos<'ix> {
     pub auction_custodian: AccountInfo<'ix>,
 }
 
-pub fn get_user_amount_and_new_status_and_penalized<'ix>(
+pub fn get_user_amount_and_new_status_and_penalized(
     auction: &Auction,
     custody_token: &TokenAccount,
     auction_config: &AuctionConfig,
     init_auction_fee: u64,
-    active_auction_account_infos: ActiveAuctionAccountInfos<'ix>,
+    active_auction_account_infos: ActiveAuctionAccountInfos<'_>,
     accounts: &[AccountInfo],
 ) -> Result<(u64, AuctionStatus, bool)> {
     let auction_info = auction.info.as_ref().unwrap();
@@ -288,9 +288,9 @@ pub fn get_user_amount_and_new_status_and_penalized<'ix>(
     ))
 }
 
-pub fn get_order_executed_event<'ix>(
+pub fn get_order_executed_event(
     auction: &Auction,
-    fast_vaa: &AccountInfo<'ix>,
+    fast_vaa: &AccountInfo<'_>,
     auction_info: &AuctionInfo,
     penalized: bool,
 ) -> OrderExecuted {
