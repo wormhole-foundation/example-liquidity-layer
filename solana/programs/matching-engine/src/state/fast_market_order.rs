@@ -43,16 +43,13 @@ pub struct FastMarketOrder {
     pub vaa_sequence: u64,
     /// The timestamp of the fast transfer VAA.
     pub vaa_timestamp: u32,
-    /// The VAA nonce, which is not used and can be set to 0.
-    // TODO: Can be taken out.
-    pub vaa_nonce: u32,
     /// The source chain of the fast transfer VAA. (represented as a Wormhole
     /// chain ID).
     pub vaa_emitter_chain: u16,
     /// The consistency level of the fast transfer VAA.
     pub vaa_consistency_level: u8,
     /// Not used, but required for bytemuck serialization.
-    _padding: [u8; 5],
+    _padding: [u8; 1],
 }
 
 pub struct FastMarketOrderParams {
@@ -70,7 +67,6 @@ pub struct FastMarketOrderParams {
     pub close_account_refund_recipient: Pubkey,
     pub vaa_sequence: u64,
     pub vaa_timestamp: u32,
-    pub vaa_nonce: u32,
     pub vaa_emitter_chain: u16,
     pub vaa_consistency_level: u8,
     pub vaa_emitter_address: [u8; 32],
@@ -95,11 +91,10 @@ impl FastMarketOrder {
             close_account_refund_recipient: params.close_account_refund_recipient,
             vaa_sequence: params.vaa_sequence,
             vaa_timestamp: params.vaa_timestamp,
-            vaa_nonce: params.vaa_nonce,
             vaa_emitter_chain: params.vaa_emitter_chain,
             vaa_consistency_level: params.vaa_consistency_level,
             vaa_emitter_address: params.vaa_emitter_address,
-            _padding: [0_u8; 5],
+            _padding: [0_u8; 1],
         }
     }
 
@@ -132,7 +127,8 @@ impl FastMarketOrder {
         wormhole_svm_definitions::compute_keccak_digest(
             keccak::hashv(&[
                 &self.vaa_timestamp.to_be_bytes(),
-                &self.vaa_nonce.to_be_bytes(),
+                // The nonce is 0
+                &0_u32.to_be_bytes(),
                 &self.vaa_emitter_chain.to_be_bytes(),
                 &self.vaa_emitter_address,
                 &self.vaa_sequence.to_be_bytes(),

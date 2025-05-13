@@ -2,9 +2,9 @@ use anchor_lang::{prelude::*, Discriminator};
 use bytemuck::{Pod, Zeroable};
 use solana_program::{instruction::Instruction, keccak};
 
-use crate::{state::FastMarketOrder, ID};
+use crate::{error::MatchingEngineError, state::FastMarketOrder, ID};
 
-const NUM_ACCOUNTS: usize = 6;
+const NUM_ACCOUNTS: usize = 7;
 
 pub struct InitializeFastMarketOrderAccounts<'ix> {
     /// Lamports from this signer will be used to create the new fast market
@@ -12,6 +12,9 @@ pub struct InitializeFastMarketOrderAccounts<'ix> {
     /// close this account.
     // TODO: Rename to "payer".
     pub signer: &'ix Pubkey, // 0
+
+    /// The from router endpoint account for the hash of the fast market order
+    pub from_endpoint: &'ix Pubkey,
     /// Wormhole guardian set account used to check recovered pubkeys using
     /// [Self::guardian_set_signatures].
     // TODO: Rename to "wormhole_guardian_set"
@@ -70,6 +73,8 @@ impl InitializeFastMarketOrder<'_> {
         let InitializeFastMarketOrderAccounts {
             signer: payer,
             fast_market_order_account: new_fast_market_order,
+            from_endpoint,
+
             guardian_set: wormhole_guardian_set,
             guardian_set_signatures: shim_guardian_signatures,
             verify_vaa_shim_program,
@@ -77,12 +82,13 @@ impl InitializeFastMarketOrder<'_> {
         } = self.accounts;
 
         let accounts = vec![
-            AccountMeta::new(*payer, true),
-            AccountMeta::new_readonly(*verify_vaa_shim_program, false),
-            AccountMeta::new_readonly(*wormhole_guardian_set, false),
-            AccountMeta::new_readonly(*shim_guardian_signatures, false),
-            AccountMeta::new(*new_fast_market_order, false),
-            AccountMeta::new_readonly(solana_program::system_program::ID, false),
+            AccountMeta::new(*payer, true),                              // 0
+            AccountMeta::new(*new_fast_market_order, false),             // 1
+            AccountMeta::new_readonly(*from_endpoint, false),            // 2
+            AccountMeta::new_readonly(*wormhole_guardian_set, false),    // 3
+            AccountMeta::new_readonly(*shim_guardian_signatures, false), // 4
+            AccountMeta::new_readonly(*verify_vaa_shim_program, false),  // 5
+            AccountMeta::new_readonly(solana_program::system_program::ID, false), // 6
         ];
         debug_assert_eq!(accounts.len(), NUM_ACCOUNTS);
 
@@ -115,18 +121,28 @@ pub(super) fn process(
 
     // Verify the VAA digest with the Verify VAA shim program.
     super::helpers::invoke_verify_hash(
-        1, // verify_vaa_shim_program_index
-        2, // wormhole_guardian_set_index
-        3, // shim_guardian_signatures_index
+        5, // verify_vaa_shim_program_index
+        3, // wormhole_guardian_set_index
+        4, // shim_guardian_signatures_index
         data.guardian_set_bump,
         keccak::Hash(fast_market_order_vaa_digest),
         accounts,
     )?;
 
+    // These accounts will be used by the Verify VAA shim program.
+    let from_endpoint = super::helpers::try_live_endpoint_account(&accounts[2], "from_endpoint")
+        .map_err(|e: Error| e.with_account_name("from_endpoint"))?;
+
+    if fast_market_order.vaa_emitter_address != from_endpoint.address
+        || fast_market_order.vaa_emitter_chain != from_endpoint.chain
+    {
+        return Err(MatchingEngineError::InvalidEndpoint.into());
+    }
+
     // Create the new fast market order account and serialize the instruction
     // data into it.
 
-    let new_fast_market_order_info = &accounts[4];
+    let new_fast_market_order_info = &accounts[1];
     let (expected_fast_market_order_key, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrder::SEED_PREFIX,
@@ -181,6 +197,7 @@ mod test {
             accounts: InitializeFastMarketOrderAccounts {
                 signer: &Default::default(),
                 fast_market_order_account: &Default::default(),
+                from_endpoint: &Default::default(),
                 verify_vaa_shim_program: &Default::default(),
                 guardian_set: &Default::default(),
                 guardian_set_signatures: &Default::default(),

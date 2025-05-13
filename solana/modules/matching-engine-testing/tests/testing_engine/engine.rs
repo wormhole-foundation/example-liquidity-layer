@@ -886,11 +886,18 @@ impl TestingEngine {
             ],
             program_id,
         );
+        let from_endpoint_pubkey = current_state
+            .router_endpoints()
+            .unwrap()
+            .endpoints
+            .get_from_and_to_endpoint_addresses(self.testing_context.transfer_direction)
+            .0;
         let create_fast_market_order_instruction = initialize_fast_market_order_shimful_instruction(
             &create_fast_market_order_payer_signer,
             program_id,
             fast_market_order,
             &guardian_signature_info,
+            &from_endpoint_pubkey,
         );
 
         let place_initial_offer_instruction = place_initial_offer_shimful_instruction(

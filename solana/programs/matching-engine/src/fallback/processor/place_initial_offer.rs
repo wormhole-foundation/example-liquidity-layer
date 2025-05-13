@@ -359,7 +359,6 @@ mod tests {
             close_account_refund_recipient: Pubkey::default(),
             vaa_sequence: 0,
             vaa_timestamp: 0,
-            vaa_nonce: 0,
             vaa_emitter_chain: 0,
             vaa_consistency_level: 0,
             vaa_emitter_address: [0_u8; 32],

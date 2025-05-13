@@ -80,11 +80,18 @@ pub async fn initialize_fast_market_order_shimful(
         ],
         program_id,
     );
+    let from_endpoint = current_state
+        .router_endpoints()
+        .unwrap()
+        .endpoints
+        .get_from_and_to_endpoint_addresses(testing_context.transfer_direction)
+        .0;
     let initialize_fast_market_order_ix = initialize_fast_market_order_shimful_instruction(
         &payer_signer,
         program_id,
         fast_market_order,
         &guardian_signature_info,
+        &from_endpoint,
     );
     let transaction = testing_context
         .create_transaction(
@@ -142,6 +149,7 @@ pub fn initialize_fast_market_order_shimful_instruction(
     program_id: &Pubkey,
     fast_market_order: FastMarketOrderState,
     guardian_signature_info: &GuardianSignatureInfo,
+    from_endpoint: &Pubkey,
 ) -> solana_program::instruction::Instruction {
     let fast_market_order_account = Pubkey::find_program_address(
         &[
@@ -158,6 +166,7 @@ pub fn initialize_fast_market_order_shimful_instruction(
         fast_market_order_account: &fast_market_order_account,
         guardian_set: &guardian_signature_info.guardian_set_pubkey,
         guardian_set_signatures: &guardian_signature_info.guardian_signatures_pubkey,
+        from_endpoint: from_endpoint,
         verify_vaa_shim_program: &WORMHOLE_VERIFY_VAA_SHIM_PID,
         system_program: &solana_program::system_program::ID,
     };
@@ -274,7 +283,6 @@ pub fn create_fast_market_order_state_from_vaa_data(
         close_account_refund_recipient,
         vaa_sequence: vaa_data.sequence,
         vaa_timestamp: vaa_data.vaa_time,
-        vaa_nonce: vaa_data.nonce,
         vaa_emitter_chain: vaa_data.emitter_chain,
         vaa_consistency_level: vaa_data.consistency_level,
         vaa_emitter_address: vaa_data.emitter_address,

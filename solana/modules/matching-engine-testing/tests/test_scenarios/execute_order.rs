@@ -1066,33 +1066,20 @@ pub async fn test_execute_order_shim_emitter_chain_mismatch() {
             InitializeFastMarketOrderShimInstructionConfig {
                 fast_market_order_id: 1,
                 vaa_index: 1,
+                expected_error: Some(ExpectedError {
+                    instruction_index: 2,
+                    error_code: u32::from(MatchingEngineError::InvalidEndpoint),
+                    error_string: "InvalidEndpoint".to_string(),
+                }),
                 ..InitializeFastMarketOrderShimInstructionConfig::default()
             },
         ),
     ];
-    let initialize_second_fast_market_order_state = testing_engine
+    testing_engine
         .execute(
             &mut test_context,
             initialize_second_fast_market_order_instruction_triggers,
             Some(initialize_first_fast_market_order_state),
-        )
-        .await;
-    let instruction_triggers = vec![InstructionTrigger::ExecuteOrderShim(
-        ExecuteOrderInstructionConfig {
-            vaa_index: 1,
-            expected_error: Some(ExpectedError {
-                instruction_index: 2,
-                error_code: u32::from(MatchingEngineError::VaaMismatch),
-                error_string: "AccountNotInitialized".to_string(),
-            }),
-            ..ExecuteOrderInstructionConfig::default()
-        },
-    )];
-    testing_engine
-        .execute(
-            &mut test_context,
-            instruction_triggers,
-            Some(initialize_second_fast_market_order_state),
         )
         .await;
 }

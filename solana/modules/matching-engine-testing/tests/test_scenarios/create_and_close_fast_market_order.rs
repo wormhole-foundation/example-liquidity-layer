@@ -69,6 +69,9 @@ pub async fn test_initialize_fast_market_order_fallback() {
 
     let instruction_triggers = vec![
         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
         InstructionTrigger::InitializeFastMarketOrderShim(
             InitializeFastMarketOrderShimInstructionConfig::default(),
         ),
@@ -96,6 +99,9 @@ pub async fn test_close_fast_market_order_fallback() {
     let testing_engine = TestingEngine::new(testing_context).await;
     let instruction_triggers = vec![
         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
         InstructionTrigger::InitializeFastMarketOrderShim(
             InitializeFastMarketOrderShimInstructionConfig::default(),
         ),
@@ -126,6 +132,9 @@ pub async fn test_close_fast_market_order_fallback_with_custom_refund_recipient(
     let testing_engine = TestingEngine::new(testing_context).await;
     let instruction_triggers = vec![
         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
         InstructionTrigger::InitializeFastMarketOrderShim(
             InitializeFastMarketOrderShimInstructionConfig {
                 close_account_refund_recipient: Some(solver_1.pubkey()),
@@ -238,6 +247,9 @@ pub async fn test_fast_market_order_cannot_be_closed_twice() {
     let testing_engine = TestingEngine::new(testing_context).await;
     let instruction_triggers = vec![
         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
         InstructionTrigger::InitializeFastMarketOrderShim(
             InitializeFastMarketOrderShimInstructionConfig::default(),
         ),
@@ -286,6 +298,9 @@ pub async fn test_fast_market_order_can_be_opened_after_being_closed_by_the_same
     let testing_engine = TestingEngine::new(testing_context).await;
     let instruction_triggers = vec![
         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
         InstructionTrigger::InitializeFastMarketOrderShim(
             InitializeFastMarketOrderShimInstructionConfig::default(),
         ),
@@ -321,6 +336,9 @@ pub async fn test_multiple_fast_market_orders_can_be_opened_and_closed_by_differ
     let testing_engine = TestingEngine::new(testing_context).await;
     let instruction_triggers = vec![
         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
         InstructionTrigger::InitializeFastMarketOrderShim(
             InitializeFastMarketOrderShimInstructionConfig {
                 fast_market_order_id: 0,
