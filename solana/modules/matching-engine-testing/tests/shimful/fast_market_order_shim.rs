@@ -166,7 +166,7 @@ pub fn initialize_fast_market_order_shimful_instruction(
         fast_market_order_account: &fast_market_order_account,
         guardian_set: &guardian_signature_info.guardian_set_pubkey,
         guardian_set_signatures: &guardian_signature_info.guardian_signatures_pubkey,
-        from_endpoint: from_endpoint,
+        from_endpoint,
         verify_vaa_shim_program: &WORMHOLE_VERIFY_VAA_SHIM_PID,
         system_program: &solana_program::system_program::ID,
     };

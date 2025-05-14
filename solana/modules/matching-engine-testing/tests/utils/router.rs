@@ -98,7 +98,6 @@ impl Deref for TestRouterEndpoints {
 }
 
 impl TestRouterEndpoints {
-    
     pub fn get_from_and_to_endpoint_addresses(
         &self,
         transfer_direction: TransferDirection,
