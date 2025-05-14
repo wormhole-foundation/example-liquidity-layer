@@ -3,6 +3,8 @@ use solana_program::instruction::Instruction;
 
 use crate::error::MatchingEngineError;
 
+const NUM_ACCOUNTS: usize = 2;
+
 pub struct CloseFastMarketOrderAccounts<'ix> {
     /// The fast market order account to be closed.
     pub fast_market_order: &'ix Pubkey,
@@ -26,19 +28,22 @@ impl CloseFastMarketOrder<'_> {
             close_account_refund_recipient: refund_recipient,
         } = self.accounts;
 
+        let accounts = vec![
+            AccountMeta::new(*fast_market_order, false),
+            AccountMeta::new(*refund_recipient, true),
+        ];
+        debug_assert_eq!(accounts.len(), NUM_ACCOUNTS);
+
         Instruction {
             program_id: *self.program_id,
-            accounts: vec![
-                AccountMeta::new(*fast_market_order, false),
-                AccountMeta::new(*refund_recipient, true),
-            ],
+            accounts,
             data: super::FallbackMatchingEngineInstruction::CloseFastMarketOrder.to_vec(),
         }
     }
 }
 
 pub fn process(accounts: &[AccountInfo]) -> Result<()> {
-    super::helpers::require_min_account_infos_len(accounts, 2)?;
+    super::helpers::require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
 
     // We need to check the refund recipient account against what we know as the
     // refund recipient encoded in the fast market order account.
@@ -74,4 +79,21 @@ pub fn process(accounts: &[AccountInfo]) -> Result<()> {
     **fast_market_order_info_lamports = 0;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_instruction() {
+        CloseFastMarketOrder {
+            program_id: &Default::default(),
+            accounts: CloseFastMarketOrderAccounts {
+                fast_market_order: &Default::default(),
+                close_account_refund_recipient: &Default::default(),
+            },
+        }
+        .instruction();
+    }
 }

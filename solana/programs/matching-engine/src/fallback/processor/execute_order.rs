@@ -16,11 +16,13 @@ use crate::{
 
 use super::burn_and_post::{burn_and_post, PostMessageAccounts};
 
+const NUM_ACCOUNTS: usize = 32;
+
 // TODO: Rename to "ExecuteOrderCctpV2Accounts".
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct ExecuteOrderShimAccounts<'ix> {
     /// The signer account.
-    // TODO: Rename payer.
+    // TODO: Rename to "payer".
     pub signer: &'ix Pubkey, // 0
     /// The cctp message account. Seeds must be \["cctp-msg", auction_address.as_ref()\].
     // TODO: Rename to "new_cctp_message".
@@ -142,42 +144,45 @@ impl ExecuteOrderCctpShim<'_> {
             clock: _,
         } = self.accounts;
 
+        let accounts = vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new(*new_cctp_message, false),
+            AccountMeta::new(*custodian, false),
+            AccountMeta::new_readonly(*fast_market_order, false),
+            AccountMeta::new(*active_auction, false),
+            AccountMeta::new(*auction_custody, false),
+            AccountMeta::new_readonly(*auction_config, false),
+            AccountMeta::new(*auction_best_offer_token, false),
+            AccountMeta::new(*executor_token, false),
+            AccountMeta::new(*auction_initial_offer_token, false),
+            AccountMeta::new(*auction_initial_participant, false),
+            AccountMeta::new_readonly(*to_endpoint, false),
+            AccountMeta::new_readonly(*post_message_shim_program, false),
+            AccountMeta::new(*core_bridge_emitter_sequence, false),
+            AccountMeta::new(*shim_message, false),
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_program, false),
+            AccountMeta::new(*cctp_mint, false),
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_sender_authority, false),
+            AccountMeta::new(*cctp_message_transmitter_config, false),
+            AccountMeta::new_readonly(*cctp_token_messenger, false),
+            AccountMeta::new_readonly(*cctp_remote_token_messenger, false),
+            AccountMeta::new_readonly(*cctp_token_minter, false),
+            AccountMeta::new(*cctp_local_token, false),
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_event_authority, false),
+            AccountMeta::new_readonly(*cctp_message_transmitter_program, false),
+            AccountMeta::new_readonly(*core_bridge_program, false),
+            AccountMeta::new(*core_bridge_config, false),
+            AccountMeta::new(*core_bridge_fee_collector, false),
+            AccountMeta::new(*post_message_shim_event_authority, false),
+            AccountMeta::new_readonly(solana_program::system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(solana_program::sysvar::clock::ID, false),
+        ];
+        debug_assert_eq!(accounts.len(), NUM_ACCOUNTS);
+
         Instruction {
             program_id: *self.program_id,
-            accounts: vec![
-                AccountMeta::new(*payer, true),
-                AccountMeta::new(*new_cctp_message, false),
-                AccountMeta::new(*custodian, false),
-                AccountMeta::new_readonly(*fast_market_order, false),
-                AccountMeta::new(*active_auction, false),
-                AccountMeta::new(*auction_custody, false),
-                AccountMeta::new_readonly(*auction_config, false),
-                AccountMeta::new(*auction_best_offer_token, false),
-                AccountMeta::new(*executor_token, false),
-                AccountMeta::new(*auction_initial_offer_token, false),
-                AccountMeta::new(*auction_initial_participant, false),
-                AccountMeta::new_readonly(*to_endpoint, false),
-                AccountMeta::new_readonly(*post_message_shim_program, false),
-                AccountMeta::new(*core_bridge_emitter_sequence, false),
-                AccountMeta::new(*shim_message, false),
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_program, false),
-                AccountMeta::new(*cctp_mint, false),
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_sender_authority, false),
-                AccountMeta::new(*cctp_message_transmitter_config, false),
-                AccountMeta::new_readonly(*cctp_token_messenger, false),
-                AccountMeta::new_readonly(*cctp_remote_token_messenger, false),
-                AccountMeta::new_readonly(*cctp_token_minter, false),
-                AccountMeta::new(*cctp_local_token, false),
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_event_authority, false),
-                AccountMeta::new_readonly(*cctp_message_transmitter_program, false),
-                AccountMeta::new_readonly(*core_bridge_program, false),
-                AccountMeta::new(*core_bridge_config, false),
-                AccountMeta::new(*core_bridge_fee_collector, false),
-                AccountMeta::new(*post_message_shim_event_authority, false),
-                AccountMeta::new_readonly(solana_program::system_program::ID, false),
-                AccountMeta::new_readonly(spl_token::ID, false),
-                AccountMeta::new_readonly(solana_program::sysvar::clock::ID, false),
-            ],
+            accounts,
             data: super::FallbackMatchingEngineInstruction::ExecuteOrderCctpShim.to_vec(),
         }
     }
@@ -185,7 +190,7 @@ impl ExecuteOrderCctpShim<'_> {
 
 pub(super) fn process(accounts: &[AccountInfo]) -> Result<()> {
     // This saves stack space whereas having that in the body does not
-    super::helpers::require_min_account_infos_len(accounts, 31)?;
+    super::helpers::require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
 
     // Get the accounts
     let payer_info = &accounts[0];
@@ -637,4 +642,51 @@ pub(super) fn process(accounts: &[AccountInfo]) -> Result<()> {
 
     invoke_signed_unchecked(&close_account_ix, accounts, &[Custodian::SIGNER_SEEDS])
         .map_err(Into::into)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_instruction() {
+        ExecuteOrderCctpShim {
+            program_id: &Default::default(),
+            accounts: ExecuteOrderShimAccounts {
+                signer: &Default::default(),
+                cctp_message: &Default::default(),
+                custodian: &Default::default(),
+                fast_market_order: &Default::default(),
+                active_auction: &Default::default(),
+                active_auction_custody_token: &Default::default(),
+                active_auction_config: &Default::default(),
+                active_auction_best_offer_token: &Default::default(),
+                executor_token: &Default::default(),
+                initial_offer_token: &Default::default(),
+                initial_participant: &Default::default(),
+                to_router_endpoint: &Default::default(),
+                post_message_shim_program: &Default::default(),
+                core_bridge_emitter_sequence: &Default::default(),
+                post_shim_message: &Default::default(),
+                cctp_deposit_for_burn_mint: &Default::default(),
+                cctp_deposit_for_burn_token_messenger_minter_sender_authority: &Default::default(),
+                cctp_deposit_for_burn_message_transmitter_config: &Default::default(),
+                cctp_deposit_for_burn_token_messenger: &Default::default(),
+                cctp_deposit_for_burn_remote_token_messenger: &Default::default(),
+                cctp_deposit_for_burn_token_minter: &Default::default(),
+                cctp_deposit_for_burn_local_token: &Default::default(),
+                cctp_deposit_for_burn_token_messenger_minter_event_authority: &Default::default(),
+                cctp_deposit_for_burn_token_messenger_minter_program: &Default::default(),
+                cctp_deposit_for_burn_message_transmitter_program: &Default::default(),
+                core_bridge_program: &Default::default(),
+                core_bridge_config: &Default::default(),
+                core_bridge_fee_collector: &Default::default(),
+                post_message_shim_event_authority: &Default::default(),
+                system_program: &Default::default(),
+                token_program: &Default::default(),
+                clock: &Default::default(),
+            },
+        }
+        .instruction();
+    }
 }

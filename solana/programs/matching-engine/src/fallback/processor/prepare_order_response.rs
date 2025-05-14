@@ -14,7 +14,6 @@ use common::{
 };
 use ruint::aliases::U256;
 use solana_program::{instruction::Instruction, keccak, program::invoke_signed_unchecked};
-use wormhole_svm_shim::verify_vaa::{VerifyHash, VerifyHashAccounts, VerifyHashData};
 
 use crate::{
     error::MatchingEngineError,
@@ -26,6 +25,8 @@ use crate::{
     CCTP_MINT_RECIPIENT, ID,
 };
 
+const NUM_ACCOUNTS: usize = 28;
+
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct PrepareOrderResponseCctpShimData {
     pub encoded_cctp_message: Vec<u8>,
@@ -35,7 +36,7 @@ pub struct PrepareOrderResponseCctpShimData {
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct FinalizedVaaMessageArgs {
-    pub base_fee: u64, // Can also get from deposit payload
+    pub base_fee: u64,
     pub consistency_level: u8,
     pub guardian_set_bump: u8,
 }
@@ -112,38 +113,41 @@ impl<'ix> PrepareOrderResponseCctpShim<'ix> {
             system_program: _,
         } = self.accounts;
 
+        let accounts = vec![
+            AccountMeta::new(*signer, true),
+            AccountMeta::new_readonly(*custodian, false),
+            AccountMeta::new_readonly(*fast_market_order, false),
+            AccountMeta::new_readonly(*from_endpoint, false),
+            AccountMeta::new_readonly(*to_endpoint, false),
+            AccountMeta::new(*prepared_order_response, false),
+            AccountMeta::new(*prepared_custody_token, false),
+            AccountMeta::new_readonly(*base_fee_token, false),
+            AccountMeta::new_readonly(*usdc, false),
+            AccountMeta::new_readonly(*verify_shim_program, false),
+            AccountMeta::new_readonly(*guardian_set, false),
+            AccountMeta::new_readonly(*guardian_set_signatures, false),
+            AccountMeta::new_readonly(*cctp_message_transmitter_program, false),
+            AccountMeta::new_readonly(*cctp_message_transmitter_authority, false),
+            AccountMeta::new_readonly(*cctp_message_transmitter_config, false),
+            AccountMeta::new(*cctp_used_nonces, false),
+            AccountMeta::new_readonly(*cctp_message_transmitter_event_authority, false),
+            AccountMeta::new_readonly(*cctp_token_messenger, false),
+            AccountMeta::new_readonly(*cctp_remote_token_messenger, false),
+            AccountMeta::new_readonly(*cctp_token_minter, false),
+            AccountMeta::new(*cctp_local_token, false),
+            AccountMeta::new_readonly(*cctp_token_pair, false),
+            AccountMeta::new(*cctp_token_messenger_minter_custody_token, false),
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_event_authority, false),
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_program, false),
+            AccountMeta::new(*cctp_mint_recipient, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(solana_program::system_program::ID, false),
+        ];
+        debug_assert_eq!(accounts.len(), NUM_ACCOUNTS);
+
         Instruction {
             program_id: *self.program_id,
-            accounts: vec![
-                AccountMeta::new(*signer, true),
-                AccountMeta::new_readonly(*custodian, false),
-                AccountMeta::new_readonly(*fast_market_order, false),
-                AccountMeta::new_readonly(*from_endpoint, false),
-                AccountMeta::new_readonly(*to_endpoint, false),
-                AccountMeta::new(*prepared_order_response, false),
-                AccountMeta::new(*prepared_custody_token, false),
-                AccountMeta::new_readonly(*base_fee_token, false),
-                AccountMeta::new_readonly(*usdc, false),
-                AccountMeta::new_readonly(*verify_shim_program, false),
-                AccountMeta::new_readonly(*guardian_set, false),
-                AccountMeta::new_readonly(*guardian_set_signatures, false),
-                AccountMeta::new_readonly(*cctp_message_transmitter_program, false),
-                AccountMeta::new_readonly(*cctp_message_transmitter_authority, false),
-                AccountMeta::new_readonly(*cctp_message_transmitter_config, false),
-                AccountMeta::new(*cctp_used_nonces, false),
-                AccountMeta::new_readonly(*cctp_message_transmitter_event_authority, false),
-                AccountMeta::new_readonly(*cctp_token_messenger, false),
-                AccountMeta::new_readonly(*cctp_remote_token_messenger, false),
-                AccountMeta::new_readonly(*cctp_token_minter, false),
-                AccountMeta::new(*cctp_local_token, false),
-                AccountMeta::new_readonly(*cctp_token_pair, false),
-                AccountMeta::new(*cctp_token_messenger_minter_custody_token, false),
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_event_authority, false),
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_program, false),
-                AccountMeta::new(*cctp_mint_recipient, false),
-                AccountMeta::new_readonly(spl_token::ID, false),
-                AccountMeta::new_readonly(solana_program::system_program::ID, false),
-            ],
+            accounts,
             data: super::FallbackMatchingEngineInstruction::PrepareOrderResponseCctpShim(self.data)
                 .to_vec(),
         }
@@ -154,7 +158,7 @@ pub fn prepare_order_response_cctp_shim(
     accounts: &[AccountInfo],
     data: PrepareOrderResponseCctpShimData,
 ) -> Result<()> {
-    require_min_account_infos_len(accounts, 27)?;
+    require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
 
     let payer_info = &accounts[0];
 
@@ -253,29 +257,15 @@ pub fn prepare_order_response_cctp_shim(
         None,
     );
 
-    let verify_vaa_shim_program_info = &accounts[9];
-
-    if verify_vaa_shim_program_info.key
-        != &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID
-    {
-        return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_account_name("verify_vaa_shim_program"));
-    }
-
-    let wormhole_guardian_set_info = &accounts[10];
-    let shim_guardian_signatures_info = &accounts[11];
-
-    let verify_hash_ix = VerifyHash {
-        program_id: verify_vaa_shim_program_info.key,
-        accounts: VerifyHashAccounts {
-            guardian_set: wormhole_guardian_set_info.key,
-            guardian_signatures: shim_guardian_signatures_info.key,
-        },
-        data: VerifyHashData::new(guardian_set_bump, finalized_message_digest),
-    }
-    .instruction();
-
-    invoke_signed_unchecked(&verify_hash_ix, accounts, &[])?;
+    // Verify the VAA digest with the Verify VAA shim program.
+    super::helpers::invoke_verify_hash(
+        9,  // verify_vaa_shim_program_index
+        10, // wormhole_guardian_set_index
+        11, // shim_guardian_signatures_index
+        guardian_set_bump,
+        finalized_message_digest,
+        accounts,
+    )?;
 
     // Write to the prepared slow order account, which will be closed by one of
     // the following instructions:
@@ -440,4 +430,56 @@ pub fn prepare_order_response_cctp_shim(
             .to_vec(),
     }
     .try_serialize(&mut new_prepared_order_response_cursor)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_instruction() {
+        PrepareOrderResponseCctpShim {
+            program_id: &Default::default(),
+            accounts: PrepareOrderResponseCctpShimAccounts {
+                signer: &Default::default(),
+                custodian: &Default::default(),
+                fast_market_order: &Default::default(),
+                from_endpoint: &Default::default(),
+                to_endpoint: &Default::default(),
+                prepared_order_response: &Default::default(),
+                prepared_custody_token: &Default::default(),
+                base_fee_token: &Default::default(),
+                usdc: &Default::default(),
+                verify_shim_program: &Default::default(),
+                guardian_set: &Default::default(),
+                guardian_set_signatures: &Default::default(),
+                cctp_message_transmitter_program: &Default::default(),
+                cctp_mint_recipient: &Default::default(),
+                cctp_message_transmitter_authority: &Default::default(),
+                cctp_message_transmitter_config: &Default::default(),
+                cctp_used_nonces: &Default::default(),
+                cctp_message_transmitter_event_authority: &Default::default(),
+                cctp_token_messenger: &Default::default(),
+                cctp_remote_token_messenger: &Default::default(),
+                cctp_token_minter: &Default::default(),
+                cctp_local_token: &Default::default(),
+                cctp_token_pair: &Default::default(),
+                cctp_token_messenger_minter_custody_token: &Default::default(),
+                cctp_token_messenger_minter_event_authority: &Default::default(),
+                cctp_token_messenger_minter_program: &Default::default(),
+                token_program: &Default::default(),
+                system_program: &Default::default(),
+            },
+            data: PrepareOrderResponseCctpShimData {
+                encoded_cctp_message: Default::default(),
+                cctp_attestation: Default::default(),
+                finalized_vaa_message_args: FinalizedVaaMessageArgs {
+                    base_fee: Default::default(),
+                    consistency_level: Default::default(),
+                    guardian_set_bump: Default::default(),
+                },
+            },
+        }
+        .instruction();
+    }
 }

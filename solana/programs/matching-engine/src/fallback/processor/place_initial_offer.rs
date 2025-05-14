@@ -15,6 +15,8 @@ use super::FallbackMatchingEngineInstruction;
 // TODO: Remove this.
 pub use super::helpers::VaaMessageBodyHeader;
 
+const NUM_ACCOUNTS: usize = 13;
+
 // TODO: Remove this struct. Just use u64.
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
@@ -27,36 +29,36 @@ pub struct PlaceInitialOfferCctpShimData {
 pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     /// The signer account
     // TODO: Rename to "payer".
-    pub signer: &'ix Pubkey,
-    /// The transfer authority account
-    pub transfer_authority: &'ix Pubkey,
+    pub signer: &'ix Pubkey, // 0
     /// The custodian account
-    pub custodian: &'ix Pubkey,
+    pub custodian: &'ix Pubkey, // 1
     /// The auction config account
-    pub auction_config: &'ix Pubkey,
+    pub auction_config: &'ix Pubkey, // 2
     /// The from endpoint account
-    pub from_endpoint: &'ix Pubkey,
+    pub from_endpoint: &'ix Pubkey, // 3
     /// The to endpoint account
-    pub to_endpoint: &'ix Pubkey,
+    pub to_endpoint: &'ix Pubkey, // 4
     /// The fast market order account, which will be initialized. Seeds are
     /// [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
-    pub fast_market_order: &'ix Pubkey,
+    pub fast_market_order: &'ix Pubkey, // 5
     /// The auction account, which will be initialized.
     // TODO: Rename to "new_auction".
-    pub auction: &'ix Pubkey,
+    pub auction: &'ix Pubkey, // 6
     /// The offer token account
-    pub offer_token: &'ix Pubkey,
+    pub offer_token: &'ix Pubkey, // 7
     /// The auction custody token account.
     // TODO: Rename to "new_auction_custody".
-    pub auction_custody_token: &'ix Pubkey,
+    pub auction_custody_token: &'ix Pubkey, // 8
     /// The usdc token account
-    pub usdc: &'ix Pubkey,
+    pub usdc: &'ix Pubkey, // 9
+    /// The transfer authority account
+    pub transfer_authority: &'ix Pubkey, // 10
     /// The system program account
     // TODO: Remove.
-    pub system_program: &'ix Pubkey,
+    pub system_program: &'ix Pubkey, // 11
     /// The token program account
     // TODO: Remove.
-    pub token_program: &'ix Pubkey,
+    pub token_program: &'ix Pubkey, // 12
 }
 
 // TODO: Rename to "PlaceInitialOfferCctpV2".
@@ -85,23 +87,26 @@ impl PlaceInitialOfferCctpShim<'_> {
             token_program: _,
         } = self.accounts;
 
+        let accounts = vec![
+            AccountMeta::new(*payer, true),
+            AccountMeta::new_readonly(*custodian, false),
+            AccountMeta::new_readonly(*auction_config, false),
+            AccountMeta::new_readonly(*from_endpoint, false),
+            AccountMeta::new_readonly(*to_endpoint, false),
+            AccountMeta::new_readonly(*fast_market_order, false),
+            AccountMeta::new(*new_auction, false),
+            AccountMeta::new(*offer_token, false),
+            AccountMeta::new(*new_auction_custody, false),
+            AccountMeta::new_readonly(*usdc, false),
+            AccountMeta::new_readonly(*transfer_authority, false),
+            AccountMeta::new_readonly(solana_program::system_program::ID, false),
+            AccountMeta::new_readonly(spl_token::ID, false),
+        ];
+        debug_assert_eq!(accounts.len(), NUM_ACCOUNTS);
+
         Instruction {
             program_id: *self.program_id,
-            accounts: vec![
-                AccountMeta::new(*payer, true),
-                AccountMeta::new_readonly(*transfer_authority, false),
-                AccountMeta::new_readonly(*custodian, false),
-                AccountMeta::new_readonly(*auction_config, false),
-                AccountMeta::new_readonly(*from_endpoint, false),
-                AccountMeta::new_readonly(*to_endpoint, false),
-                AccountMeta::new_readonly(*fast_market_order, false),
-                AccountMeta::new(*new_auction, false),
-                AccountMeta::new(*offer_token, false),
-                AccountMeta::new(*new_auction_custody, false),
-                AccountMeta::new_readonly(*usdc, false),
-                AccountMeta::new_readonly(solana_program::system_program::ID, false),
-                AccountMeta::new_readonly(spl_token::ID, false),
-            ],
+            accounts,
             data: FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(&self.data).to_vec(),
         }
     }
@@ -109,34 +114,27 @@ impl PlaceInitialOfferCctpShim<'_> {
 
 pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -> Result<()> {
     // Check all accounts are valid
-    super::helpers::require_min_account_infos_len(accounts, 11)?;
+    super::helpers::require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
 
     // This instruction will use the payer to create the following accounts:
     // 1. Auction.
     // 2. Auction Custody Token Account.
     let payer_info = &accounts[0];
 
-    // This transfer authority must have been delegated authority to transfer
-    // USDC so it can transfer tokens to the auction custody token account.
-    //
-    // We will validate this transfer authority when we attempt to transfer USDC
-    // to the auction's custody account.
-    let _transfer_authority = &accounts[1];
-
     let custodian = super::helpers::try_custodian_account(
-        &accounts[2],
+        &accounts[1],
         true, // check_if_paused
     )?;
 
     let auction_config = super::helpers::try_auction_config_account(
-        &accounts[3],
+        &accounts[2],
         Some(custodian.auction_config_id),
     )?;
 
     let (from_endpoint_account, to_endpoint_account) =
-        super::helpers::try_live_endpoint_accounts_path(&accounts[4], &accounts[5])?;
+        super::helpers::try_live_endpoint_accounts_path(&accounts[3], &accounts[4])?;
 
-    let fast_market_order = super::helpers::try_fast_market_order_account(&accounts[6])?;
+    let fast_market_order = super::helpers::try_fast_market_order_account(&accounts[5])?;
 
     // Verify the fast market order comes from a registered endpoint.
     // TODO: Consider moving source endpoint check when creating fast market
@@ -158,7 +156,7 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
         MatchingEngineError::InvalidTargetRouter
     );
 
-    let new_auction_info = &accounts[7];
+    let new_auction_info = &accounts[6];
 
     let vaa_sequence = fast_market_order.vaa_sequence;
     let vaa_timestamp = fast_market_order.vaa_timestamp;
@@ -179,11 +177,6 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
     // custody token account seed.
     let (expected_auction_key, new_auction_bump) =
         Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_message_digest.0], &ID);
-
-    // This account must be the USDC mint. This instruction does not refer to
-    // this account explicitly. It just needs to exist so that we can create the
-    // auction's custody token account.
-    super::helpers::try_usdc_account(&accounts[10])?;
 
     // Check that the to endpoint is a valid protocol
     match to_endpoint_account.protocol {
@@ -213,8 +206,8 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
 
     // We will need to move USDC from the offer token account to the custody
     // token account. The custody token account will need to be created first.
-    let offer_token_info = &accounts[8];
-    let new_auction_custody_info = &accounts[9];
+    let offer_token_info = &accounts[7];
+    let new_auction_custody_info = &accounts[8];
 
     // We will use the expected auction custody token account key to create this
     // account.
@@ -226,10 +219,15 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
         &ID,
     );
 
+    // This account must be the USDC mint. This instruction does not refer to
+    // this account explicitly. It just needs to exist so that we can create the
+    // auction's custody token account.
+    super::helpers::try_usdc_account(&accounts[9])?;
+
     super::helpers::create_usdc_token_account_reliably(
         payer_info.key,
         &expected_auction_custody_key,
-        new_auction_info.key,
+        &expected_auction_key,
         new_auction_custody_info.lamports(),
         accounts,
         &[&[
@@ -238,6 +236,13 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
             &[new_auction_custody_bump],
         ]],
     )?;
+
+    // This transfer authority must have been delegated authority to transfer
+    // USDC so it can transfer tokens to the auction custody token account.
+    //
+    // We will validate this transfer authority when we attempt to transfer USDC
+    // to the auction's custody account.
+    let _transfer_authority = &accounts[10];
 
     // We will use the expected transfer authority account key to invoke the
     // SPL token transfer instruction.
@@ -262,7 +267,7 @@ pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -
     let transfer_ix = spl_token::instruction::transfer(
         &spl_token::ID,
         offer_token_info.key,
-        new_auction_custody_info.key,
+        &expected_auction_custody_key,
         &expected_transfer_authority_key,
         &[],
         fast_market_order
@@ -356,6 +361,33 @@ mod tests {
             vaa_emitter_address: [0_u8; 32],
         });
         let bytes = bytemuck::bytes_of(&test_fast_market_order);
-        assert!(bytes.len() == std::mem::size_of::<FastMarketOrder>());
+        // TODO: Maybe change this test to check serialization instead?
+        assert_eq!(bytes.len(), std::mem::size_of::<FastMarketOrder>());
+    }
+
+    #[test]
+    fn test_instruction() {
+        PlaceInitialOfferCctpShim {
+            program_id: &Default::default(),
+            accounts: PlaceInitialOfferCctpShimAccounts {
+                signer: &Default::default(),
+                custodian: &Default::default(),
+                auction_config: &Default::default(),
+                from_endpoint: &Default::default(),
+                to_endpoint: &Default::default(),
+                fast_market_order: &Default::default(),
+                auction: &Default::default(),
+                auction_custody_token: &Default::default(),
+                offer_token: &Default::default(),
+                usdc: &Default::default(),
+                transfer_authority: &Default::default(),
+                system_program: &Default::default(),
+                token_program: &Default::default(),
+            },
+            data: PlaceInitialOfferCctpShimData {
+                offer_price: Default::default(),
+            },
+        }
+        .instruction();
     }
 }

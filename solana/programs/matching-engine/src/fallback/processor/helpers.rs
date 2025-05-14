@@ -10,6 +10,7 @@ use solana_program::{
     program_pack::Pack,
     system_instruction,
 };
+use wormhole_svm_shim::verify_vaa;
 
 use crate::{
     error::MatchingEngineError,
@@ -138,6 +139,34 @@ pub fn try_fast_market_order_account<'a>(
     Ok(Ref::map(data, |data| {
         bytemuck::from_bytes(&data[8..8 + std::mem::size_of::<FastMarketOrder>()])
     }))
+}
+
+pub fn invoke_verify_hash(
+    verify_vaa_shim_program_index: usize,
+    wormhole_guardian_set_index: usize,
+    shim_guardian_signatures_index: usize,
+    guardian_set_bump: u8,
+    vaa_message_digest: keccak::Hash,
+    accounts: &[AccountInfo],
+) -> Result<()> {
+    if accounts[verify_vaa_shim_program_index].key
+        != &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID
+    {
+        return Err(ErrorCode::ConstraintAddress.into())
+            .map_err(|e: Error| e.with_account_name("verify_vaa_shim_program"));
+    }
+
+    let verify_hash_ix = verify_vaa::VerifyHash {
+        program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
+        accounts: verify_vaa::VerifyHashAccounts {
+            guardian_set: accounts[wormhole_guardian_set_index].key,
+            guardian_signatures: accounts[shim_guardian_signatures_index].key,
+        },
+        data: verify_vaa::VerifyHashData::new(guardian_set_bump, vaa_message_digest),
+    }
+    .instruction();
+
+    invoke_signed_unchecked(&verify_hash_ix, accounts, &[]).map_err(Into::into)
 }
 
 pub fn create_account_reliably(
