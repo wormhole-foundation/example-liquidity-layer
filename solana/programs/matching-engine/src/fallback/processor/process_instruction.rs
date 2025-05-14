@@ -114,7 +114,8 @@ impl FallbackMatchingEngineInstruction<'_> {
         match self {
             Self::InitializeFastMarketOrder(data) => {
                 let mut out = Vec::with_capacity(
-                    SELECTOR_SIZE + std::mem::size_of::<InitializeFastMarketOrderData>(),
+                    SELECTOR_SIZE
+                        .saturating_add(std::mem::size_of::<InitializeFastMarketOrderData>()),
                 );
 
                 out.extend_from_slice(
@@ -125,7 +126,8 @@ impl FallbackMatchingEngineInstruction<'_> {
                 out
             }
             Self::PlaceInitialOfferCctpShim(data) => {
-                let mut out = Vec::with_capacity(SELECTOR_SIZE + std::mem::size_of::<u64>());
+                let mut out =
+                    Vec::with_capacity(SELECTOR_SIZE.saturating_add(std::mem::size_of::<u64>()));
 
                 out.extend_from_slice(
                     &FallbackMatchingEngineInstruction::PLACE_INITIAL_OFFER_CCTP_SHIM_SELECTOR,
@@ -156,7 +158,8 @@ impl FallbackMatchingEngineInstruction<'_> {
             }
             FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim(data) => {
                 let mut out = Vec::with_capacity(
-                    SELECTOR_SIZE + std::mem::size_of::<SettleAuctionNoneCctpShimData>(),
+                    SELECTOR_SIZE
+                        .saturating_add(std::mem::size_of::<SettleAuctionNoneCctpShimData>()),
                 );
 
                 out.extend_from_slice(

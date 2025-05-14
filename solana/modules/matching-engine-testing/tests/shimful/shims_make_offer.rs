@@ -164,7 +164,7 @@ pub async fn evaluate_place_initial_offer_shimful_state(
             .get_active_auction()
             .unwrap();
         active_auction_state
-            .verify_auction(&testing_context, test_context)
+            .verify_auction(testing_context, test_context)
             .await
             .expect("Could not verify auction");
         let auction_accounts = initial_offer_placed_state.auction_accounts;

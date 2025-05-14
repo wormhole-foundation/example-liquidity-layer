@@ -275,7 +275,7 @@ pub async fn place_initial_offer_shimless(
         auction_state
             .get_active_auction()
             .unwrap()
-            .verify_auction(&testing_context, test_context)
+            .verify_auction(testing_context, test_context)
             .await
             .expect("Could not verify auction state");
         return TestingEngineState::InitialOfferPlaced {
@@ -413,7 +413,7 @@ pub async fn improve_offer(
         new_auction_state
             .get_active_auction()
             .unwrap()
-            .verify_auction(&testing_context, test_context)
+            .verify_auction(testing_context, test_context)
             .await
             .expect("Could not verify auction state");
         return TestingEngineState::OfferImproved {

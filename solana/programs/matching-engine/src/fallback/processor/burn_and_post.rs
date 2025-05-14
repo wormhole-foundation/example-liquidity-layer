@@ -53,8 +53,8 @@ pub fn burn_and_post<'info>(
             payer,
             wormhole_program_id: &CORE_BRIDGE_PROGRAM_ID,
             derived: post_message::PostMessageDerivedAccounts {
-                message: Some(&message),
-                sequence: Some(&sequence),
+                message: Some(message),
+                sequence: Some(sequence),
                 core_bridge_config: Some(&CORE_BRIDGE_CONFIG),
                 fee_collector: Some(&CORE_BRIDGE_FEE_COLLECTOR),
                 event_authority: Some(&POST_MESSAGE_SHIM_EVENT_AUTHORITY),

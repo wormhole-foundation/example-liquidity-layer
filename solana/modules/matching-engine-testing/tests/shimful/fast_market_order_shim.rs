@@ -62,7 +62,7 @@ pub async fn initialize_fast_market_order_shimful(
         .clone()
         .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
     let guardian_signature_info = create_guardian_signatures(
-        &testing_context,
+        testing_context,
         test_context,
         &payer_signer,
         &fast_transfer_vaa.vaa_data,

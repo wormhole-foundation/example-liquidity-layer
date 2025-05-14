@@ -316,19 +316,21 @@ pub struct CctpAccounts {
     pub message_transmitter_program: Pubkey,
 }
 
-impl Into<CctpDepositForBurn> for CctpAccounts {
-    fn into(self) -> CctpDepositForBurn {
-        CctpDepositForBurn {
-            mint: self.mint,
-            local_token: self.local_token,
-            token_messenger_minter_sender_authority: self.token_messenger_minter_sender_authority,
-            message_transmitter_config: self.message_transmitter_config,
-            token_messenger: self.token_messenger,
-            remote_token_messenger: self.remote_token_messenger,
-            token_minter: self.token_minter,
-            token_messenger_minter_event_authority: self.token_messenger_minter_event_authority,
-            message_transmitter_program: self.message_transmitter_program,
-            token_messenger_minter_program: self.token_messenger_minter_program,
+impl From<CctpAccounts> for CctpDepositForBurn {
+    fn from(cctp_accounts: CctpAccounts) -> Self {
+        Self {
+            mint: cctp_accounts.mint,
+            local_token: cctp_accounts.local_token,
+            token_messenger_minter_sender_authority: cctp_accounts
+                .token_messenger_minter_sender_authority,
+            message_transmitter_config: cctp_accounts.message_transmitter_config,
+            token_messenger: cctp_accounts.token_messenger,
+            remote_token_messenger: cctp_accounts.remote_token_messenger,
+            token_minter: cctp_accounts.token_minter,
+            token_messenger_minter_event_authority: cctp_accounts
+                .token_messenger_minter_event_authority,
+            message_transmitter_program: cctp_accounts.message_transmitter_program,
+            token_messenger_minter_program: cctp_accounts.token_messenger_minter_program,
         }
     }
 }

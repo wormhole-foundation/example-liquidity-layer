@@ -129,7 +129,7 @@ pub fn try_fast_market_order_account<'a>(
         return Err(ErrorCode::AccountDiscriminatorNotFound.into());
     }
 
-    if &data[0..8] != &FastMarketOrder::DISCRIMINATOR {
+    if data[0..8] != FastMarketOrder::DISCRIMINATOR {
         return Err(ErrorCode::AccountDiscriminatorMismatch.into());
     }
 
@@ -137,7 +137,11 @@ pub fn try_fast_market_order_account<'a>(
     super::helpers::require_owned_by_this_program(fast_market_order_info, "fast_market_order")?;
 
     Ok(Ref::map(data, |data| {
-        bytemuck::from_bytes(&data[8..8 + std::mem::size_of::<FastMarketOrder>()])
+        bytemuck::from_bytes(
+            &data[8..8_usize
+                .checked_add(std::mem::size_of::<FastMarketOrder>())
+                .unwrap()],
+        )
     }))
 }
 

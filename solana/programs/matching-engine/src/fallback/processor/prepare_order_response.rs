@@ -393,7 +393,7 @@ pub fn prepare_order_response_cctp_shim(
         &spl_token::ID,
         &CCTP_MINT_RECIPIENT,
         &expected_prepared_custody_key,
-        &custodian_info.key,
+        custodian_info.key,
         &[], // Apparently this is only for multi-sig accounts
         amount_in,
     )

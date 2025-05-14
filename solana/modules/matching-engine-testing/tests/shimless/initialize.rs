@@ -143,8 +143,7 @@ pub fn initialize_program_instruction(
 ) -> Instruction {
     let program_id = testing_context.get_matching_engine_program_id();
     let usdc_mint_address = testing_context.get_usdc_mint_address();
-    let initialize_addresses =
-        InitializeAddresses::new(testing_context, &auction_parameters_config);
+    let initialize_addresses = InitializeAddresses::new(testing_context, auction_parameters_config);
     let InitializeAddresses {
         custodian_address: custodian,
         auction_config_address: auction_config,
