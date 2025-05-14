@@ -1,15 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
 use matching_engine::{
-    fallback::{
-        settle_auction_none_cctp::{
-            SettleAuctionNoneCctpShimAccounts, SettleAuctionNoneCctpShimData,
-        },
-        FallbackMatchingEngineInstruction,
+    fallback::settle_auction_none_cctp::{
+        SettleAuctionNoneCctpShim, SettleAuctionNoneCctpShimAccounts, SettleAuctionNoneCctpShimData,
     },
     state::Auction,
 };
-use solana_program::instruction::Instruction;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{signature::Signer, sysvar::SysvarId, transaction::Transaction};
 use wormhole_svm_definitions::solana::{
@@ -29,22 +25,6 @@ use crate::{
 };
 
 use super::shims_execute_order::{create_cctp_accounts, CctpAccounts};
-
-pub struct SettleAuctionNoneCctpShim<'ix> {
-    pub program_id: &'ix Pubkey,
-    pub accounts: SettleAuctionNoneCctpShimAccounts<'ix>,
-    pub data: SettleAuctionNoneCctpShimData,
-}
-
-impl SettleAuctionNoneCctpShim<'_> {
-    pub fn instruction(self) -> Instruction {
-        Instruction {
-            program_id: *self.program_id,
-            accounts: self.accounts.to_account_metas(),
-            data: FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim(&self.data).to_vec(),
-        }
-    }
-}
 
 pub async fn settle_auction_none_shimful(
     testing_context: &TestingContext,
@@ -170,7 +150,7 @@ fn create_settle_auction_none_cctp_shimful_accounts(
     let OrderPreparedState {
         prepared_order_response_address,
         prepared_custody_token,
-        base_fee_token,
+        base_fee_token: _,
         actor_enum: _,
         prepared_by,
     } = *order_prepared_state;

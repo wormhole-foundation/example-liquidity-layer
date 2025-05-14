@@ -123,18 +123,25 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
     let custodian = &ctx.accounts.custodian;
     let token_program = &ctx.accounts.token_program;
 
+    let accounts_infos = ctx.accounts.to_account_infos();
+
     let super::SettledNone {
         user_amount: amount,
         fill,
         auction_settled_event,
-    } = super::settle_none_and_prepare_fill(super::SettleNoneAndPrepareFill {
-        prepared_order_response: &mut ctx.accounts.prepared.order_response,
-        prepared_custody_token,
-        auction: &mut ctx.accounts.auction,
-        fee_recipient_token: &ctx.accounts.fee_recipient_token,
-        custodian,
-        token_program,
-    })?;
+    } = super::settle_none_and_prepare_fill(
+        super::SettleNoneAndPrepareFill {
+            prepared_order_response_key: &ctx.accounts.prepared.order_response.key(),
+            prepared_order_response: &mut ctx.accounts.prepared.order_response,
+            prepared_custody_token_key: &ctx.accounts.prepared.custody_token.key(),
+            prepared_custody_token: &ctx.accounts.prepared.custody_token,
+            auction: &mut ctx.accounts.auction,
+            fee_recipient_token_key: &ctx.accounts.fee_recipient_token.key(),
+            fee_recipient_token: &ctx.accounts.fee_recipient_token,
+            custodian_key: &custodian.key(),
+        },
+        &accounts_infos,
+    )?;
 
     // Emit an event indicating that the auction has been settled.
     emit_cpi!(auction_settled_event);

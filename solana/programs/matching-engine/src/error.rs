@@ -86,6 +86,7 @@ pub enum MatchingEngineError {
     BaseFeeTokenRequired = 0x43e,
 
     CannotCloseAuctionYet = 0x500,
+    InvalidFeeRecipientToken = 0x501,
     AuctionHistoryNotFull = 0x502,
     AuctionHistoryFull = 0x504,
 
