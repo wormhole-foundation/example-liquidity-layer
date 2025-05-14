@@ -140,6 +140,7 @@ pub async fn prepare_order_response_cctp_shimful(
             prepared_custody_token: accounts.prepared_custody_token,
             base_fee_token: accounts.base_fee_token,
             actor_enum: config.actor_enum,
+            prepared_by: payer_signer.pubkey(),
         };
         TestingEngineState::OrderPrepared {
             base: current_state.base().clone(),

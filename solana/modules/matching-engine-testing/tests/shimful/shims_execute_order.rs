@@ -302,3 +302,85 @@ fn create_execute_order_shim_accounts<'ix>(
         clock: clock_id,                                                                    // 31
     }
 }
+
+pub struct CctpAccounts {
+    pub mint: Pubkey,
+    pub token_messenger: Pubkey,
+    pub token_messenger_minter_sender_authority: Pubkey,
+    pub token_messenger_minter_event_authority: Pubkey,
+    pub message_transmitter_config: Pubkey,
+    pub token_minter: Pubkey,
+    pub local_token: Pubkey,
+    pub remote_token_messenger: Pubkey,
+    pub token_messenger_minter_program: Pubkey,
+    pub message_transmitter_program: Pubkey,
+}
+
+impl Into<CctpDepositForBurn> for CctpAccounts {
+    fn into(self) -> CctpDepositForBurn {
+        CctpDepositForBurn {
+            mint: self.mint,
+            local_token: self.local_token,
+            token_messenger_minter_sender_authority: self.token_messenger_minter_sender_authority,
+            message_transmitter_config: self.message_transmitter_config,
+            token_messenger: self.token_messenger,
+            remote_token_messenger: self.remote_token_messenger,
+            token_minter: self.token_minter,
+            token_messenger_minter_event_authority: self.token_messenger_minter_event_authority,
+            message_transmitter_program: self.message_transmitter_program,
+            token_messenger_minter_program: self.token_messenger_minter_program,
+        }
+    }
+}
+
+pub fn create_cctp_accounts(
+    current_state: &TestingEngineState,
+    testing_context: &TestingContext,
+) -> CctpAccounts {
+    let transfer_direction = current_state.base().transfer_direction;
+    let fixture_accounts = testing_context.get_fixture_accounts().unwrap();
+    let remote_token_messenger = match transfer_direction {
+        TransferDirection::FromEthereumToArbitrum => {
+            fixture_accounts.arbitrum_remote_token_messenger
+        }
+        TransferDirection::FromArbitrumToEthereum => {
+            fixture_accounts.ethereum_remote_token_messenger
+        }
+        _ => panic!("Unsupported transfer direction"),
+    };
+    let token_messenger_minter_sender_authority =
+        Pubkey::find_program_address(&[b"sender_authority"], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;
+    let message_transmitter_config =
+        Pubkey::find_program_address(&[b"message_transmitter"], &MESSAGE_TRANSMITTER_PROGRAM_ID).0;
+    let token_messenger =
+        Pubkey::find_program_address(&[b"token_messenger"], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;
+    let token_minter =
+        Pubkey::find_program_address(&[b"token_minter"], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;
+    let local_token = Pubkey::find_program_address(
+        &[b"local_token", &USDC_MINT.to_bytes()],
+        &TOKEN_MESSENGER_MINTER_PROGRAM_ID,
+    )
+    .0;
+    let token_messenger_minter_event_authority =
+        Pubkey::find_program_address(&[EVENT_AUTHORITY_SEED], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;
+    CctpAccounts {
+        mint: utils::constants::USDC_MINT,
+        token_messenger,
+        token_messenger_minter_sender_authority,
+        token_messenger_minter_event_authority,
+        message_transmitter_config,
+        token_minter,
+        local_token,
+        remote_token_messenger,
+        token_messenger_minter_program: TOKEN_MESSENGER_MINTER_PROGRAM_ID,
+        message_transmitter_program: MESSAGE_TRANSMITTER_PROGRAM_ID,
+    }
+}
+
+pub fn create_cctp_deposit_for_burn(
+    current_state: &TestingEngineState,
+    testing_context: &TestingContext,
+) -> CctpDepositForBurn {
+    let cctp_accounts = create_cctp_accounts(current_state, testing_context);
+    cctp_accounts.into()
+}

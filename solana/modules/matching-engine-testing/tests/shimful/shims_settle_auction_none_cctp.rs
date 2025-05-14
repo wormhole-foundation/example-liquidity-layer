@@ -61,7 +61,7 @@ pub async fn settle_auction_none_shimful(
         return current_state.auction_state().clone();
     }
 
-    AuctionState::Settled
+    AuctionState::Settled(None)
 }
 
 struct SettleAuctionNoneCctpShimAccountsOwned {

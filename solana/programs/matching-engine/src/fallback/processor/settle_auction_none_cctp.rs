@@ -185,9 +185,9 @@ pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -
     let closed_prepared_order_response_infos = &accounts[7..=9];
 
     let closed_prepared_order_response_info = &closed_prepared_order_response_infos[0];
-    let mut prepared_order_response = PreparedOrderResponse::try_deserialize(
+    let mut prepared_order_response = Box::new(PreparedOrderResponse::try_deserialize(
         &mut &closed_prepared_order_response_info.data.borrow_mut()[..],
-    )?;
+    )?);
     let prepared_order_response_pda = Pubkey::create_program_address(
         &[
             PreparedOrderResponse::SEED_PREFIX,
@@ -273,7 +273,7 @@ pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -
         &ID,
         auction_signer_seeds,
     )?;
-    let mut auction = prepared_order_response.new_auction_placeholder(data.auction_bump);
+    let mut auction = Box::new(prepared_order_response.new_auction_placeholder(data.auction_bump));
 
     let SettledNone {
         user_amount,

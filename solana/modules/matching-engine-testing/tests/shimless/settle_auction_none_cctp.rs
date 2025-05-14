@@ -63,7 +63,7 @@ pub async fn settle_auction_none_shimless(
         return current_state.auction_state().clone();
     }
 
-    AuctionState::Settled
+    AuctionState::Settled(None)
 }
 
 async fn create_settle_auction_none_cctp_shimless_accounts(

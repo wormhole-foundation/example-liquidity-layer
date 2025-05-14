@@ -107,7 +107,7 @@ pub async fn settle_auction_complete(
             base: current_state.base().clone(),
             initialized: current_state.initialized().unwrap().clone(),
             router_endpoints: current_state.router_endpoints().unwrap().clone(),
-            auction_state: AuctionState::Settled(Box::new(active_auction.clone())),
+            auction_state: AuctionState::Settled(Some(Box::new(active_auction.clone()))),
             fast_market_order: current_state.fast_market_order().cloned(),
             order_prepared: current_state.order_prepared().unwrap().clone(),
             auction_accounts: current_state.auction_accounts().cloned(),

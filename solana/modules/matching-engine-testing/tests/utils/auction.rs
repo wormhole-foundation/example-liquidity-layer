@@ -47,7 +47,7 @@ pub struct AuctionAccounts {
 pub enum AuctionState {
     Active(Box<ActiveAuctionState>),
     Paused(Box<ActiveAuctionState>),
-    Settled(Box<ActiveAuctionState>),
+    Settled(Option<Box<ActiveAuctionState>>),
     Inactive,
 }
 
@@ -57,7 +57,8 @@ impl AuctionState {
             AuctionState::Active(auction) => Some(auction),
             AuctionState::Paused(auction) => Some(auction),
             AuctionState::Inactive => None,
-            AuctionState::Settled(auction) => Some(auction),
+            AuctionState::Settled(Some(auction)) => Some(auction),
+            AuctionState::Settled(None) => None,
         }
     }
 
