@@ -42,7 +42,8 @@ impl CloseFastMarketOrder<'_> {
     }
 }
 
-pub fn process(accounts: &[AccountInfo]) -> Result<()> {
+#[inline(never)]
+pub(super) fn process(accounts: &[AccountInfo]) -> Result<()> {
     super::helpers::require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
 
     // We need to check the refund recipient account against what we know as the

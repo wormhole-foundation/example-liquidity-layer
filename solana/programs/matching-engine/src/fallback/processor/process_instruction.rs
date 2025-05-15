@@ -5,10 +5,7 @@ use crate::ID;
 
 use super::initialize_fast_market_order::InitializeFastMarketOrderData;
 use super::place_initial_offer::PlaceInitialOfferCctpShimData;
-use super::prepare_order_response::{
-    prepare_order_response_cctp_shim, PrepareOrderResponseCctpShimData,
-};
-use super::settle_auction_none_cctp::SettleAuctionNoneCctpShimData;
+use super::prepare_order_response::PrepareOrderResponseCctpShimData;
 
 const SELECTOR_SIZE: usize = 8;
 
@@ -34,7 +31,7 @@ pub enum FallbackMatchingEngineInstruction<'ix> {
     PlaceInitialOfferCctpShim(&'ix PlaceInitialOfferCctpShimData),
     ExecuteOrderCctpShim,
     PrepareOrderResponseCctpShim(PrepareOrderResponseCctpShimData),
-    SettleAuctionNoneCctpShim(&'ix SettleAuctionNoneCctpShimData),
+    SettleAuctionNoneCctpShim,
 }
 
 pub fn process_instruction(
@@ -63,10 +60,10 @@ pub fn process_instruction(
             super::execute_order::process(accounts)
         }
         FallbackMatchingEngineInstruction::PrepareOrderResponseCctpShim(data) => {
-            prepare_order_response_cctp_shim(accounts, data)
+            super::prepare_order_response::process(accounts, data)
         }
-        FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim(data) => {
-            super::settle_auction_none_cctp::process(accounts, data)
+        FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim => {
+            super::settle_auction_none_cctp::process(accounts)
         }
     }
 }
@@ -100,9 +97,7 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
                     .map(Self::PrepareOrderResponseCctpShim)
             }
             FallbackMatchingEngineInstruction::SETTLE_AUCTION_NONE_CCTP_SHIM_SELECTOR => {
-                bytemuck::try_from_bytes(&instruction_data[SELECTOR_SIZE..])
-                    .ok()
-                    .map(Self::SettleAuctionNoneCctpShim)
+                Some(Self::SettleAuctionNoneCctpShim)
             }
             _ => None,
         }
@@ -156,18 +151,8 @@ impl FallbackMatchingEngineInstruction<'_> {
 
                 out
             }
-            FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim(data) => {
-                let mut out = Vec::with_capacity(
-                    SELECTOR_SIZE
-                        .saturating_add(std::mem::size_of::<SettleAuctionNoneCctpShimData>()),
-                );
-
-                out.extend_from_slice(
-                    &FallbackMatchingEngineInstruction::SETTLE_AUCTION_NONE_CCTP_SHIM_SELECTOR,
-                );
-                out.extend_from_slice(bytemuck::bytes_of(*data));
-
-                out
+            FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim => {
+                FallbackMatchingEngineInstruction::SETTLE_AUCTION_NONE_CCTP_SHIM_SELECTOR.to_vec()
             }
         }
     }

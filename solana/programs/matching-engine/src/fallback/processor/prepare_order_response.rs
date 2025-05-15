@@ -154,7 +154,8 @@ impl<'ix> PrepareOrderResponseCctpShim<'ix> {
     }
 }
 
-pub fn prepare_order_response_cctp_shim(
+#[inline(never)]
+pub(super) fn process(
     accounts: &[AccountInfo],
     data: PrepareOrderResponseCctpShimData,
 ) -> Result<()> {

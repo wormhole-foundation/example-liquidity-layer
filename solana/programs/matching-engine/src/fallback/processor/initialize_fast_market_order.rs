@@ -95,6 +95,7 @@ impl InitializeFastMarketOrder<'_> {
     }
 }
 
+#[inline(never)]
 pub(super) fn process(
     accounts: &[AccountInfo],
     data: &InitializeFastMarketOrderData,

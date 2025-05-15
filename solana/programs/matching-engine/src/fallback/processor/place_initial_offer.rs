@@ -112,7 +112,11 @@ impl PlaceInitialOfferCctpShim<'_> {
     }
 }
 
-pub fn process(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -> Result<()> {
+#[inline(never)]
+pub(super) fn process(
+    accounts: &[AccountInfo],
+    data: &PlaceInitialOfferCctpShimData,
+) -> Result<()> {
     // Check all accounts are valid
     super::helpers::require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
 

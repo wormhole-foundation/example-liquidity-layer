@@ -1,18 +1,15 @@
-use crate::{
-    processor::{settle_none_and_prepare_fill, SettleNoneAndPrepareFill},
-    ID,
-};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{spl_token, TokenAccount};
 use bytemuck::{Pod, Zeroable};
 use common::wormhole_io::TypePrefixedPayload;
-use solana_program::instruction::Instruction;
-use solana_program::program::invoke_signed_unchecked;
+use solana_program::{instruction::Instruction, program::invoke_signed_unchecked};
 
 use crate::{
     error::MatchingEngineError,
     processor::SettledNone,
+    processor::{settle_none_and_prepare_fill, SettleNoneAndPrepareFill},
     state::{Auction, Custodian, MessageProtocol, PreparedOrderResponse},
+    ID,
 };
 
 use super::{
@@ -21,6 +18,9 @@ use super::{
     FallbackMatchingEngineInstruction,
 };
 
+const NUM_ACCOUNTS: usize = 28;
+
+// TODO: Remove
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct SettleAuctionNoneCctpShimData {
@@ -80,18 +80,23 @@ pub struct SettleAuctionNoneCctpShimAccounts<'ix> {
     /// Core bridge config
     pub core_bridge_config: &'ix Pubkey, // 24
     /// Token program
+    // TODO: Remove
     pub token_program: &'ix Pubkey, // 25
     /// System program
+    // TODO: Remove
     pub system_program: &'ix Pubkey, // 26
     /// Clock
+    // TODO: Remove
     pub clock: &'ix Pubkey, // 27
     /// Rent
+    // TODO: Remove
     pub rent: &'ix Pubkey, // 28
 }
 
 pub struct SettleAuctionNoneCctpShim<'ix> {
     pub program_id: &'ix Pubkey,
     pub accounts: SettleAuctionNoneCctpShimAccounts<'ix>,
+    // TODO: Remove
     pub data: SettleAuctionNoneCctpShimData,
 }
 
@@ -123,157 +128,137 @@ impl<'ix> SettleAuctionNoneCctpShim<'ix> {
             core_bridge_program,
             core_bridge_fee_collector,
             core_bridge_config,
-            token_program,
-            system_program,
-            clock,
-            rent,
+            token_program: _,
+            system_program: _,
+            clock: _,
+            rent: _,
         } = self.accounts;
+
+        let accounts = vec![
+            AccountMeta::new_readonly(*payer, true),                // 0
+            AccountMeta::new(*post_shim_message, false),            // 1
+            AccountMeta::new(*core_bridge_emitter_sequence, false), // 2
+            AccountMeta::new_readonly(*post_message_shim_event_authority, false), // 3
+            AccountMeta::new_readonly(*post_message_shim_program, false), // 4
+            AccountMeta::new(*custodian, false),                    // 5
+            AccountMeta::new(*fee_recipient_token, false),          // 6
+            AccountMeta::new(*closed_prepared_order_response, false), // 7
+            AccountMeta::new(*closed_prepared_order_response_actor, false), // 8
+            AccountMeta::new(*closed_prepared_order_response_custody_token, false), // 9
+            AccountMeta::new(*auction, false),                      // 10
+            AccountMeta::new(*cctp_message, false),                 // 11
+            AccountMeta::new(*cctp_mint, false),                    // 12
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_sender_authority, false), // 13
+            AccountMeta::new(*cctp_message_transmitter_config, false), // 14
+            AccountMeta::new_readonly(*cctp_token_messenger, false), // 15
+            AccountMeta::new_readonly(*cctp_remote_token_messenger, false), // 16
+            AccountMeta::new(*cctp_token_minter, false),            // 17
+            AccountMeta::new(*cctp_local_token, false),             // 18
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_event_authority, false), // 19
+            AccountMeta::new_readonly(*cctp_token_messenger_minter_program, false), // 20
+            AccountMeta::new_readonly(*cctp_message_transmitter_program, false), // 21
+            AccountMeta::new_readonly(*core_bridge_program, false), // 22
+            AccountMeta::new(*core_bridge_fee_collector, false),    // 23
+            AccountMeta::new(*core_bridge_config, false),           // 24
+            AccountMeta::new_readonly(spl_token::ID, false),        // 25
+            AccountMeta::new_readonly(solana_program::system_program::ID, false), // 26
+            AccountMeta::new_readonly(solana_program::sysvar::clock::ID, false), // 27
+        ];
+        debug_assert_eq!(accounts.len(), NUM_ACCOUNTS);
+
         Instruction {
             program_id: *self.program_id,
-            accounts: vec![
-                AccountMeta::new_readonly(*payer, true),                // 0
-                AccountMeta::new(*post_shim_message, false),            // 1
-                AccountMeta::new(*core_bridge_emitter_sequence, false), // 2
-                AccountMeta::new_readonly(*post_message_shim_event_authority, false), // 3
-                AccountMeta::new_readonly(*post_message_shim_program, false), // 4
-                AccountMeta::new(*custodian, false),                    // 5
-                AccountMeta::new(*fee_recipient_token, false),          // 6
-                AccountMeta::new_readonly(*closed_prepared_order_response, false), // 7
-                AccountMeta::new(*closed_prepared_order_response_actor, false), // 8
-                AccountMeta::new(*closed_prepared_order_response_custody_token, false), // 9
-                AccountMeta::new(*auction, false),                      // 10
-                AccountMeta::new(*cctp_message, false),                 // 11
-                AccountMeta::new(*cctp_mint, false),                    // 12
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_sender_authority, false), // 13
-                AccountMeta::new(*cctp_message_transmitter_config, false), // 14
-                AccountMeta::new_readonly(*cctp_token_messenger, false),   // 15
-                AccountMeta::new_readonly(*cctp_remote_token_messenger, false), // 16
-                AccountMeta::new(*cctp_token_minter, false),               // 17
-                AccountMeta::new(*cctp_local_token, false),                // 18
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_event_authority, false), // 19
-                AccountMeta::new_readonly(*cctp_token_messenger_minter_program, false), // 20
-                AccountMeta::new_readonly(*cctp_message_transmitter_program, false),    // 21
-                AccountMeta::new_readonly(*core_bridge_program, false),                 // 22
-                AccountMeta::new(*core_bridge_fee_collector, false),                    // 23
-                AccountMeta::new(*core_bridge_config, false),                           // 24
-                AccountMeta::new_readonly(*token_program, false),                       // 25
-                AccountMeta::new_readonly(*system_program, false),                      // 26
-                AccountMeta::new_readonly(*clock, false),                               // 27
-                AccountMeta::new_readonly(*rent, false),                                // 28
-            ],
-            data: FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim(&self.data).to_vec(),
+            accounts,
+            data: FallbackMatchingEngineInstruction::SettleAuctionNoneCctpShim.to_vec(),
         }
     }
 }
 
-pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -> Result<()> {
-    require_min_account_infos_len(accounts, 29)?;
-    let payer = &accounts[0];
-    let post_shim_infos = &accounts[1..=4];
+#[inline(never)]
+pub(super) fn process(accounts: &[AccountInfo]) -> Result<()> {
+    require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
+
+    let payer_info = &accounts[0];
+    let post_shim_infos = &accounts[1..5];
 
     let custodian_info = &accounts[5];
-    let checked_custodian = super::helpers::try_custodian_account(custodian_info, false)?;
+    let custodian = super::helpers::try_custodian_account(custodian_info, false)?;
 
     let fee_recipient_token_info = &accounts[6];
+
     // Check that the fee recipient token is the custodian's fee recipient token
     require_keys_eq!(
         *fee_recipient_token_info.key,
-        checked_custodian.fee_recipient_token,
+        custodian.fee_recipient_token,
         MatchingEngineError::InvalidFeeRecipientToken
     );
 
-    let closed_prepared_order_response_infos = &accounts[7..=9];
-
-    let closed_prepared_order_response_info = &closed_prepared_order_response_infos[0];
-    let mut prepared_order_response = Box::new(PreparedOrderResponse::try_deserialize(
-        &mut &closed_prepared_order_response_info.data.borrow_mut()[..],
-    )?);
-    let prepared_order_response_pda = Pubkey::create_program_address(
-        &[
-            PreparedOrderResponse::SEED_PREFIX,
-            prepared_order_response.seeds.fast_vaa_hash.as_ref(),
-            &[prepared_order_response.seeds.bump],
-        ],
-        &ID,
+    let prepared_order_response_info = &accounts[7];
+    super::helpers::require_owned_by_this_program(
+        prepared_order_response_info,
+        "prepared_order_response",
+    )?;
+    let mut prepared_order_response = PreparedOrderResponse::try_deserialize(
+        &mut &prepared_order_response_info.data.borrow()[..],
     )
-    .map_err(|_| MatchingEngineError::InvalidPda)?;
-    require_keys_eq!(
-        prepared_order_response_pda,
-        *closed_prepared_order_response_info.key,
-        MatchingEngineError::InvalidPda
-    );
+    .map(Box::new)?;
 
-    let closed_prepared_order_response_actor_info = &closed_prepared_order_response_infos[1];
+    let original_preparer_info = &accounts[8];
+
     // Check prepared by is the same as the prepared by in the accounts
     require_keys_eq!(
+        *original_preparer_info.key,
         prepared_order_response.prepared_by,
-        *closed_prepared_order_response_actor_info.key
+        MatchingEngineError::PreparedByMismatch,
     );
 
-    let closed_prepared_order_response_custody_token_info =
-        &closed_prepared_order_response_infos[2];
+    let prepared_custody_info = &accounts[9];
 
-    // Check seeds of prepared custody token are valid
-    let prepared_custody_token = {
-        // First do checks on the prepared custody token address
-        let (prepared_custody_token_pda, _) = Pubkey::find_program_address(
-            &[
-                crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
-                closed_prepared_order_response_info.key.as_ref(),
-            ],
-            &ID,
-        );
-        require_keys_eq!(
-            prepared_custody_token_pda,
-            *closed_prepared_order_response_custody_token_info.key,
-            MatchingEngineError::InvalidPda
-        );
-        Box::new(TokenAccount::try_deserialize(
-            &mut &closed_prepared_order_response_custody_token_info
-                .data
-                .borrow_mut()[..],
-        )?)
-    };
+    // First do checks on the prepared custody token address
+    let (expected_prepared_custody_key, _) = Pubkey::find_program_address(
+        &[
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_order_response_info.key.as_ref(),
+        ],
+        &ID,
+    );
+
+    let prepared_custody =
+        TokenAccount::try_deserialize(&mut &prepared_custody_info.data.borrow()[..])
+            .map(Box::new)?;
 
     let cctp_infos = &accounts[11..=21];
 
     let _core_bridge_infos = &accounts[22..=24];
     let token_program = &accounts[25];
     let system_program = &accounts[26];
-    let _required_sysvars = &accounts[27..=28];
 
-    // Check seeds of prepared order response are valid
+    let auction_placeholder_info = &accounts[10];
 
-    // Begin of initialisation of auction account
-    // ------------------------------------------------------------------------------------------------
-    let auction_info = &accounts[10]; // Will be created here
-                                      // Check seeds of auction are valid
-    let auction_seeds = [
-        Auction::SEED_PREFIX,
-        prepared_order_response.seeds.fast_vaa_hash.as_ref(),
-        &[data.auction_bump],
-    ];
-    let auction_pda = Pubkey::create_program_address(&auction_seeds, &ID)
-        .map_err(|_| MatchingEngineError::InvalidPda)?;
-    require_keys_eq!(
-        auction_pda,
-        *auction_info.key,
-        MatchingEngineError::InvalidPda
+    let (expected_auction_placeholder_key, auction_placeholder_bump) = Pubkey::find_program_address(
+        &[
+            Auction::SEED_PREFIX,
+            &prepared_order_response.seeds.fast_vaa_hash,
+        ],
+        &ID,
     );
 
-    let auction_space = 8 + Auction::INIT_SPACE_NO_AUCTION;
-
-    let auction_signer_seeds = &[&auction_seeds[..]];
     create_account_reliably(
-        payer.key,
-        auction_info.key,
-        auction_info.lamports(),
-        auction_space,
+        payer_info.key,
+        &expected_auction_placeholder_key,
+        auction_placeholder_info.lamports(),
+        8 + Auction::INIT_SPACE_NO_AUCTION,
         accounts,
         &ID,
-        auction_signer_seeds,
+        &[&[
+            Auction::SEED_PREFIX,
+            &prepared_order_response.seeds.fast_vaa_hash,
+            &[auction_placeholder_bump],
+        ]],
     )?;
-    let mut auction = Box::new(prepared_order_response.new_auction_placeholder(data.auction_bump));
+
+    let mut auction =
+        Box::new(prepared_order_response.new_auction_placeholder(auction_placeholder_bump));
 
     let SettledNone {
         user_amount,
@@ -285,10 +270,10 @@ pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -
         )?);
         settle_none_and_prepare_fill(
             SettleNoneAndPrepareFill {
-                prepared_order_response_key: closed_prepared_order_response_info.key,
+                prepared_order_response_key: prepared_order_response_info.key,
                 prepared_order_response: &mut prepared_order_response,
-                prepared_custody_token_key: closed_prepared_order_response_custody_token_info.key,
-                prepared_custody_token: &prepared_custody_token,
+                prepared_custody_token_key: prepared_custody_info.key,
+                prepared_custody_token: &prepared_custody,
                 auction: &mut auction,
                 fee_recipient_token_key: fee_recipient_token_info.key,
                 fee_recipient_token: &fee_recipient_token,
@@ -298,36 +283,20 @@ pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -
         )?
     };
 
-    let new_auction: &mut [u8] = &mut accounts[10].try_borrow_mut_data()?;
+    let new_auction: &mut [u8] = &mut auction_placeholder_info.try_borrow_mut_data()?;
     let mut new_auction_cursor = std::io::Cursor::new(new_auction);
     auction.try_serialize(&mut new_auction_cursor)?;
 
-    // ------------------------------------------------------------------------------------------------
-    // End of initialisation of auction account
-
-    // Begin of burning and posting the message
-    // ------------------------------------------------------------------------------------------------
+    // Prepare to invoke CCTP deposit for burn along with posting Wormhole
+    // message.
     let cctp_message = &cctp_infos[0];
 
-    // Check cctp message is writable
-    if !cctp_message.is_writable {
-        msg!("Cctp message is not writable");
-        return Err(MatchingEngineError::AccountNotWritable.into())
-            .map_err(|e: Error| e.with_account_name("cctp_message"));
-    }
-    // Check cctp message seeds are valid
-    let cctp_message_seeds = [
-        common::CCTP_MESSAGE_SEED_PREFIX,
-        auction_info.key.as_ref(),
-        &[data.cctp_message_bump],
-    ];
-
-    let cctp_message_pda = Pubkey::create_program_address(&cctp_message_seeds, &ID)
-        .map_err(|_| MatchingEngineError::InvalidPda)?;
-    require_keys_eq!(
-        cctp_message_pda,
-        *cctp_message.key,
-        MatchingEngineError::InvalidPda
+    let (_, new_cctp_message_bump) = Pubkey::find_program_address(
+        &[
+            common::CCTP_MESSAGE_SEED_PREFIX,
+            auction_placeholder_info.key.as_ref(),
+        ],
+        &ID,
     );
 
     let cctp_mint = &cctp_infos[1];
@@ -346,28 +315,21 @@ pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -
     let _post_message_shim_event_authority = &post_shim_infos[2];
     let _post_message_shim_program = &post_shim_infos[3];
 
-    let post_message_accounts = PostMessageAccounts {
-        emitter: custodian_info.key,
-        payer: payer.key,
-        message: post_shim_message.key,
-        sequence: core_bridge_emitter_sequence.key,
-    };
-
-    // TODO: Do we need this check? The prepared order response will only be created with a correct endpoint?
     let to_router_endpoint = prepared_order_response.to_endpoint;
     let destination_cctp_domain = match to_router_endpoint.protocol {
         MessageProtocol::Cctp { domain } => domain,
         _ => return Err(MatchingEngineError::InvalidCctpEndpoint.into()),
     };
+
     burn_and_post(
         CpiContext::new_with_signer(
             cctp_token_messenger_minter_program.to_account_info(),
             common::wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
                 burn_token_owner: custodian_info.to_account_info(),
-                payer: payer.to_account_info(),
+                payer: payer_info.to_account_info(),
                 token_messenger_minter_sender_authority:
                     cctp_token_messenger_minter_sender_authority.to_account_info(),
-                burn_token: closed_prepared_order_response_custody_token_info.to_account_info(),
+                burn_token: prepared_custody_info.to_account_info(),
                 message_transmitter_config: cctp_message_transmitter_config.to_account_info(),
                 token_messenger: cctp_token_messenger.to_account_info(),
                 remote_token_messenger: cctp_remote_token_messenger.to_account_info(),
@@ -386,8 +348,8 @@ pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CCTP_MESSAGE_SEED_PREFIX,
-                    auction_info.key.as_ref(),
-                    &[data.cctp_message_bump],
+                    auction_placeholder_info.key.as_ref(),
+                    &[new_cctp_message_bump],
                 ],
             ],
         ),
@@ -400,28 +362,39 @@ pub fn process(accounts: &[AccountInfo], data: &SettleAuctionNoneCctpShimData) -
             wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
             payload: fill.to_vec(),
         },
-        post_message_accounts,
+        PostMessageAccounts {
+            emitter: custodian_info.key,
+            payer: payer_info.key,
+            message: post_shim_message.key,
+            sequence: core_bridge_emitter_sequence.key,
+        },
         accounts,
     )?;
-    // ------------------------------------------------------------------------------------------------
-    // End of burning and posting the message
 
-    // Begin of closing the prepared order response
-    // ------------------------------------------------------------------------------------------------
+    // Close the custody token account.
     let close_token_account_ix = spl_token::instruction::close_account(
         &spl_token::ID,
-        closed_prepared_order_response_custody_token_info.key,
-        closed_prepared_order_response_actor_info.key,
+        &expected_prepared_custody_key,
+        &prepared_order_response.prepared_by,
         custodian_info.key,
         &[],
     )?;
+
     invoke_signed_unchecked(
         &close_token_account_ix,
         accounts,
         &[&Custodian::SIGNER_SEEDS],
     )?;
-    // ------------------------------------------------------------------------------------------------
-    // End of closing the prepared order response
+
+    // Moving the lamports from the prepared order response back to the original
+    // preparer. The prepared order response account should be closed after this
+    // point.
+    let mut prepared_order_response_info_lamports =
+        prepared_order_response_info.lamports.borrow_mut();
+    **original_preparer_info.lamports.borrow_mut() = original_preparer_info
+        .lamports()
+        .saturating_add(**prepared_order_response_info_lamports);
+    **prepared_order_response_info_lamports = 0;
 
     Ok(())
 }

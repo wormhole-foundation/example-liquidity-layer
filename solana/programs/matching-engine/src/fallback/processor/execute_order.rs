@@ -188,6 +188,7 @@ impl ExecuteOrderCctpShim<'_> {
     }
 }
 
+#[inline(never)]
 pub(super) fn process(accounts: &[AccountInfo]) -> Result<()> {
     // This saves stack space whereas having that in the body does not
     super::helpers::require_min_account_infos_len(accounts, NUM_ACCOUNTS)?;
