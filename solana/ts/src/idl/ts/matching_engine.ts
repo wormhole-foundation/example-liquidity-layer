@@ -3086,6 +3086,10 @@ export type MatchingEngine = {
       "name": "bestOfferTokenMismatch"
     },
     {
+      "code": 7067,
+      "name": "initialOfferTokenMismatch"
+    },
+    {
       "code": 7068,
       "name": "bestOfferTokenRequired"
     },
@@ -3132,6 +3136,10 @@ export type MatchingEngine = {
     {
       "code": 7280,
       "name": "cannotCloseAuctionYet"
+    },
+    {
+      "code": 7281,
+      "name": "invalidFeeRecipientToken"
     },
     {
       "code": 7282,

@@ -3080,6 +3080,10 @@
       "name": "BestOfferTokenMismatch"
     },
     {
+      "code": 7067,
+      "name": "InitialOfferTokenMismatch"
+    },
+    {
       "code": 7068,
       "name": "BestOfferTokenRequired"
     },
@@ -3126,6 +3130,10 @@
     {
       "code": 7280,
       "name": "CannotCloseAuctionYet"
+    },
+    {
+      "code": 7281,
+      "name": "InvalidFeeRecipientToken"
     },
     {
       "code": 7282,
