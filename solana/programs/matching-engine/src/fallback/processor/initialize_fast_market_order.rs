@@ -121,7 +121,7 @@ pub(super) fn process(
 
     // Verify the VAA digest with the Verify VAA shim program.
     super::helpers::invoke_verify_hash(
-        5, // verify_vaa_shim_program_index
+        2, // verify_vaa_shim_program_index
         3, // wormhole_guardian_set_index
         4, // shim_guardian_signatures_index
         data.guardian_set_bump,
