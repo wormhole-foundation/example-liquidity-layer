@@ -219,7 +219,6 @@ mod test {
                     close_account_refund_recipient: Default::default(),
                     vaa_sequence: Default::default(),
                     vaa_timestamp: Default::default(),
-                    vaa_nonce: Default::default(),
                     vaa_emitter_chain: Default::default(),
                     vaa_consistency_level: Default::default(),
                     vaa_emitter_address: Default::default(),
