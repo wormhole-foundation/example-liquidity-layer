@@ -317,6 +317,25 @@ pub async fn test_settle_auction_none_balance_changes_comparable() {
     helpers::compare_balance_changes(&balance_changes_shimful, &balance_changes_shimless);
 }
 
+/// Test that settle auction none closes the prepared order account and the custody token account
+#[tokio::test]
+pub async fn test_settle_auction_none_closes_prepared_order_account_and_custody_token_account() {
+    let (mut test_context, prepared_order_state, testing_engine, _initial_balances) =
+        Box::pin(helpers::prepare_settle_auction_none_shimful()).await;
+    let instruction_triggers = vec![InstructionTrigger::SettleAuctionNoneShim(
+        SettleAuctionNoneInstructionConfig::default(),
+    )];
+    let settle_auction_none_state = testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(prepared_order_state),
+        )
+        .await;
+    helpers::verify_prepared_order_accounts_closed(&settle_auction_none_state, &mut test_context)
+        .await;
+}
+
 /*
                     Sad path tests section
 
@@ -434,6 +453,25 @@ mod helpers {
     use crate::testing_engine::{setup::Balances, state::TestingEngineState};
 
     use super::*;
+
+    pub async fn verify_prepared_order_accounts_closed(
+        testing_state: &TestingEngineState,
+        test_context: &mut ProgramTestContext,
+    ) {
+        let prepared_order_accounts = testing_state.order_prepared().unwrap();
+        let prepared_order_account = test_context
+            .banks_client
+            .get_account(prepared_order_accounts.prepared_custody_token)
+            .await
+            .unwrap();
+        assert!(prepared_order_account.is_none());
+        let prepared_custody_token_account = test_context
+            .banks_client
+            .get_account(prepared_order_accounts.prepared_custody_token)
+            .await
+            .unwrap();
+        assert!(prepared_custody_token_account.is_none());
+    }
 
     pub async fn balance_changes_shim() -> BalanceChanges {
         let transfer_direction = TransferDirection::FromEthereumToArbitrum;
