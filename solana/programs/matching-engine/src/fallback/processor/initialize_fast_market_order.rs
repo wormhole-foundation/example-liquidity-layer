@@ -119,6 +119,16 @@ pub(super) fn process(
     // fast market order account.
     let payer_info = &accounts[0];
 
+    // These accounts will be used by the Verify VAA shim program.
+    let from_endpoint = super::helpers::try_live_endpoint_account(&accounts[1], "from_endpoint")
+        .map_err(|e: Error| e.with_account_name("from_endpoint"))?;
+
+    if fast_market_order.vaa_emitter_address != from_endpoint.address
+        || fast_market_order.vaa_emitter_chain != from_endpoint.chain
+    {
+        return Err(MatchingEngineError::InvalidEndpoint.into());
+    }
+
     // Verify the VAA digest with the Verify VAA shim program.
     super::helpers::invoke_verify_hash(
         2, // verify_vaa_shim_program_index
@@ -128,16 +138,6 @@ pub(super) fn process(
         keccak::Hash(fast_market_order_vaa_digest),
         accounts,
     )?;
-
-    // These accounts will be used by the Verify VAA shim program.
-    let from_endpoint = super::helpers::try_live_endpoint_account(&accounts[2], "from_endpoint")
-        .map_err(|e: Error| e.with_account_name("from_endpoint"))?;
-
-    if fast_market_order.vaa_emitter_address != from_endpoint.address
-        || fast_market_order.vaa_emitter_chain != from_endpoint.chain
-    {
-        return Err(MatchingEngineError::InvalidEndpoint.into());
-    }
 
     // Create the new fast market order account and serialize the instruction
     // data into it.
