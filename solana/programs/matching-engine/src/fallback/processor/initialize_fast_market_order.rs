@@ -83,11 +83,11 @@ impl InitializeFastMarketOrder<'_> {
 
         let accounts = vec![
             AccountMeta::new(*payer, true),                              // 0
-            AccountMeta::new(*new_fast_market_order, false),             // 1
-            AccountMeta::new_readonly(*from_endpoint, false),            // 2
+            AccountMeta::new_readonly(*from_endpoint, false),            // 1
+            AccountMeta::new_readonly(*verify_vaa_shim_program, false),  // 2
             AccountMeta::new_readonly(*wormhole_guardian_set, false),    // 3
             AccountMeta::new_readonly(*shim_guardian_signatures, false), // 4
-            AccountMeta::new_readonly(*verify_vaa_shim_program, false),  // 5
+            AccountMeta::new(*new_fast_market_order, false),             // 5
             AccountMeta::new_readonly(solana_program::system_program::ID, false), // 6
         ];
         debug_assert_eq!(accounts.len(), NUM_ACCOUNTS);
