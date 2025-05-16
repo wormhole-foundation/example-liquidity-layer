@@ -9,7 +9,7 @@ use solana_program::{instruction::Instruction, program::invoke_signed_unchecked}
 
 use crate::{
     error::MatchingEngineError,
-    processor::{get_user_amount_and_new_status_and_penalized, ActiveAuctionAccountInfos},
+    processor::ExecuteOrderInternalAccounting,
     state::{Auction, AuctionStatus, Custodian, MessageProtocol},
     ID,
 };
@@ -347,24 +347,21 @@ pub(super) fn process(accounts: &[AccountInfo]) -> Result<()> {
     // in?
 
     // Prepare the execute order (get the user amount, fill, and order executed event)
-    let active_auction_accounts = ActiveAuctionAccountInfos {
-        auction_best_offer_token: auction_best_offer_token_info.to_account_info(),
-        auction_executor_token: executor_token_info.to_account_info(),
-        auction_initial_offer_token: auction_initial_offer_token_info.to_account_info(),
-        auction_custody_token: auction_custody_info.to_account_info(),
-        active_auction: active_auction_info.to_account_info(),
-        auction_custodian: custodian_info.to_account_info(),
-    };
-    let custody_token =
+    let auction_custody =
         TokenAccount::try_deserialize(&mut &auction_custody_info.data.borrow()[..])?;
-    let (user_amount, new_status, _penalized) = get_user_amount_and_new_status_and_penalized(
-        &active_auction,
-        &custody_token,
-        &auction_config,
-        fast_market_order.init_auction_fee,
-        active_auction_accounts,
-        accounts,
-    )?;
+
+    let (user_amount, new_status, _penalized) = ExecuteOrderInternalAccounting {
+        active_auction_key: active_auction_info.key,
+        active_auction: &active_auction,
+        auction_custody_key: auction_custody_info.key,
+        auction_custody: &auction_custody,
+        best_offer_token_info: auction_best_offer_token_info,
+        executor_token_key: executor_token_info.key,
+        initial_offer_token_info: auction_initial_offer_token_info,
+        custodian_key: custodian_info.key,
+        auction_config: &auction_config,
+    }
+    .into_calculate_and_transfer(fast_market_order.init_auction_fee, accounts)?;
 
     // Set the active auction status
     active_auction.status = new_status;
