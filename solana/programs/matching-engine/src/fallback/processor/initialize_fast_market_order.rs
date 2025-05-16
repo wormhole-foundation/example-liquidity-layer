@@ -142,7 +142,7 @@ pub(super) fn process(
     // Create the new fast market order account and serialize the instruction
     // data into it.
 
-    let new_fast_market_order_info = &accounts[1];
+    let new_fast_market_order_info = &accounts[5];
     let (expected_fast_market_order_key, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrder::SEED_PREFIX,
