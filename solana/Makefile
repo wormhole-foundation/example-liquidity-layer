@@ -75,7 +75,7 @@ test-sbf:
 	cargo build-sbf --features mainnet
 ### Unfortunately we cannot saturate all CPUs to perform tests due to nondeterministic `RpcError`
 ### reverts. We constrain the number of threads when we run these tests.
-	cd modules/matching-engine-testing && cargo test-sbf --features mainnet -- --test-threads 3
+	cd modules/matching-engine-testing && cargo test-sbf --features mainnet -- --test-threads 1
 
 .PHONY: anchor-test
 anchor-test: anchor-test-setup
