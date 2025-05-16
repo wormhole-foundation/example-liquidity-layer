@@ -144,3 +144,23 @@ jobs:
       - name: make anchor-test-upgrade
         run: make anchor-test-upgrade
         working-directory: ./solana
+  make-test-sbf:
+    name: make test-sbf
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTC_VERSION }}
+      - name: Git Submodule Update
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git submodule update --init --recursive
+        working-directory: ./solana
+      - name: make test-sbf
+        run: make test-sbf
+        working-directory: ./solana
