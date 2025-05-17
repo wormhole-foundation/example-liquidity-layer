@@ -14,6 +14,7 @@ import {
     ChainType,
     parseLiquidityLayerEnvFile,
     tryNativeToUint8Array,
+    WORMHOLE_MESSAGE_FEE,
 } from "../src/testing";
 import { toChainId } from "@wormhole-foundation/sdk-base";
 
@@ -113,6 +114,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                         Buffer.from("All your base are belong to us."),
                         minAmountOut,
                         fromWallet.address,
+                        WORMHOLE_MESSAGE_FEE,
                     )
                     .then((tx) => mineWait(fromProvider, tx))
                     .catch((err) => {
