@@ -51,7 +51,7 @@ pub fn compute_deposit_penalty(
 }
 
 #[inline]
-pub fn compute_min_allowed_offer(params: &AuctionParameters, info: &AuctionInfo) -> u64 {
+pub fn compute_max_allowed_offer(params: &AuctionParameters, info: &AuctionInfo) -> u64 {
     info.offer_price
         .saturating_sub(mul_bps_unsafe(info.offer_price, params.min_offer_delta_bps))
 }
@@ -341,7 +341,7 @@ mod test {
         let offer_price = 10000000;
         let (info, _) = set_up(0, None, offer_price);
 
-        let allowed_offer = compute_min_allowed_offer(&params, &info);
+        let allowed_offer = compute_max_allowed_offer(&params, &info);
         assert_eq!(allowed_offer, 0);
     }
 
@@ -353,7 +353,7 @@ mod test {
         let offer_price = 10000000;
         let (info, _) = set_up(0, None, offer_price);
 
-        let allowed_offer = compute_min_allowed_offer(&params, &info);
+        let allowed_offer = compute_max_allowed_offer(&params, &info);
         assert_eq!(allowed_offer, offer_price);
     }
 
@@ -364,7 +364,7 @@ mod test {
         let offer_price = 10000000;
         let (info, _) = set_up(0, None, offer_price);
 
-        let allowed_offer = compute_min_allowed_offer(&params, &info);
+        let allowed_offer = compute_max_allowed_offer(&params, &info);
         assert_eq!(allowed_offer, offer_price - 500000);
     }
 

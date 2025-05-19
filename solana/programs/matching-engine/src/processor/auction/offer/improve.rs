@@ -32,7 +32,7 @@ pub struct ImproveOffer<'info> {
 
             require!(
                 offer_price
-                    < utils::auction::compute_min_allowed_offer(&active_auction.config, info),
+                    < utils::auction::compute_max_allowed_offer(&active_auction.config, info),
                 MatchingEngineError::CarpingNotAllowed
             );
 
@@ -42,6 +42,7 @@ pub struct ImproveOffer<'info> {
     active_auction: ActiveAuction<'info>,
 
     #[account(
+        mut,
         constraint = {
             offer_token.key() != active_auction.custody_token.key()
         } @ MatchingEngineError::InvalidOfferToken,
@@ -147,7 +148,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
             token_balance_before: offer_token.amount,
             amount_in: info.amount_in,
             total_deposit: info.total_deposit(),
-            max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info)
+            max_offer_price_allowed: utils::auction::compute_max_allowed_offer(config, info)
                 .checked_sub(1),
         }));
     }

@@ -962,6 +962,29 @@
       "args": []
     },
     {
+      "name": "get_cctp_mint_recipient",
+      "docs": [
+        "UNUSED. This instruction does not exist and has never existed. It just reverts and exist to expose an account lol."
+      ],
+      "discriminator": [
+        244,
+        239,
+        207,
+        186,
+        19,
+        125,
+        44,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "mint_recipient",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "improve_offer",
       "docs": [
         "This instruction is used to improve an existing auction offer. The `offer_price` must be",
@@ -1014,7 +1037,8 @@
           ]
         },
         {
-          "name": "offer_token"
+          "name": "offer_token",
+          "writable": true
         },
         {
           "name": "token_program"
@@ -1269,7 +1293,8 @@
           "writable": true
         },
         {
-          "name": "offer_token"
+          "name": "offer_token",
+          "writable": true
         },
         {
           "name": "auction_custody_token",
@@ -3055,6 +3080,10 @@
       "name": "BestOfferTokenMismatch"
     },
     {
+      "code": 7067,
+      "name": "InitialOfferTokenMismatch"
+    },
+    {
       "code": 7068,
       "name": "BestOfferTokenRequired"
     },
@@ -3103,12 +3132,65 @@
       "name": "CannotCloseAuctionYet"
     },
     {
+      "code": 7281,
+      "name": "InvalidFeeRecipientToken"
+    },
+    {
       "code": 7282,
       "name": "AuctionHistoryNotFull"
     },
     {
       "code": 7284,
       "name": "AuctionHistoryFull"
+    },
+    {
+      "code": 7536,
+      "name": "InvalidVerifyVaaShimProgram"
+    },
+    {
+      "code": 7792,
+      "name": "AccountAlreadyInitialized"
+    },
+    {
+      "code": 7794,
+      "name": "AccountNotWritable"
+    },
+    {
+      "code": 7796,
+      "name": "BorshDeserializationError"
+    },
+    {
+      "code": 7797,
+      "name": "BorshSerializationError"
+    },
+    {
+      "code": 7798,
+      "name": "InvalidPda"
+    },
+    {
+      "code": 7802,
+      "name": "InvalidProgram"
+    },
+    {
+      "code": 7804,
+      "name": "TokenTransferFailed"
+    },
+    {
+      "code": 7806,
+      "name": "InvalidMint"
+    },
+    {
+      "code": 8048,
+      "name": "SameEndpoints",
+      "msg": "From and to router endpoints are the same"
+    },
+    {
+      "code": 8576,
+      "name": "MismatchingCloseAccountRefundRecipient"
+    },
+    {
+      "code": 8306,
+      "name": "InvalidCctpMessage"
     }
   ],
   "types": [

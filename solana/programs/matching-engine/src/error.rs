@@ -72,6 +72,7 @@ pub enum MatchingEngineError {
     AuctionExists = 0x428,
     NoAuction = 0x429,
     BestOfferTokenMismatch = 0x42a,
+    InitialOfferTokenMismatch = 0x42b,
     BestOfferTokenRequired = 0x42c,
     PreparedByMismatch = 0x42e,
     PreparedOrderResponseNotRequired = 0x42f,
@@ -85,8 +86,31 @@ pub enum MatchingEngineError {
     BaseFeeTokenRequired = 0x43e,
 
     CannotCloseAuctionYet = 0x500,
+    InvalidFeeRecipientToken = 0x501,
     AuctionHistoryNotFull = 0x502,
     AuctionHistoryFull = 0x504,
+
+    InvalidVerifyVaaShimProgram = 0x600,
+
+    // Fallback matching engine errors
+    AccountAlreadyInitialized = 0x700,
+    AccountNotWritable = 0x702,
+    BorshDeserializationError = 0x704,
+    BorshSerializationError = 0x705,
+    InvalidPda = 0x706,
+    InvalidProgram = 0x70a,
+    TokenTransferFailed = 0x70c,
+    InvalidMint = 0x70e,
+
+    // Place initial offer errors
+    #[msg("From and to router endpoints are the same")]
+    SameEndpoints = 0x800,
+
+    // Close fast market order errors
+    MismatchingCloseAccountRefundRecipient = 0xa10,
+
+    // Execute order errors
+    InvalidCctpMessage = 0x902,
 }
 
 #[cfg(test)]

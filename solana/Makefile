@@ -7,6 +7,12 @@ CLONED_MAINNET_PROGRAMS=\
 	ts/tests/artifacts/mainnet_cctp_token_messenger_minter.so \
 	ts/tests/artifacts/mainnet_cctp_message_transmitter.so
 
+PROGRAM_NAMES=matching_engine token_router upgrade_manager
+
+### Building the IDL requires a nightly build. We arbitrarily chose the same
+### date as the release of Anchor 0.30.1.
+IDL_TOOLCHAIN=nightly-2024-06-20
+
 .PHONY: all
 all: check
 
@@ -24,7 +30,7 @@ node_modules:
 
 .PHONY: cargo-test
 cargo-test:
-	cargo test --workspace --all-targets --features $(NETWORK)
+	cargo test --lib --workspace --features $(NETWORK)
 
 .PHONY: cargo-test-all
 cargo-test-all:
@@ -42,11 +48,15 @@ endif
 
 .PHONY: anchor-test-setup
 anchor-test-setup: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
-	anchor build -- --features integration-test
+	anchor build --no-idl -- --features integration-test
 
 .PHONY: idl
 idl:
-	anchor build -- --features localnet
+	mkdir -p target/idl target/types
+	for program in $(PROGRAM_NAMES); do \
+		RUSTUP_TOOLCHAIN=$(IDL_TOOLCHAIN) anchor idl build -p $$program -o target/idl/$$program.json; \
+		anchor idl type -o target/types/$$program.ts target/idl/$$program.json; \
+	done
 	mkdir -p ts/src/idl/json
 	mkdir -p ts/src/idl/ts
 	cp -r target/idl/* ts/src/idl/json/
@@ -58,6 +68,15 @@ check-idl: idl
 
 $(BUILD_$(NETWORK)): cargo-test
 
+.PHONY: test-sbf
+test-sbf:
+### Because the tests are performed in a separate module, we need to ensure that the programs are
+### built prior to performing `cargo test-sbf`.
+	cargo build-sbf --features mainnet
+### Unfortunately we cannot saturate all CPUs to perform tests due to nondeterministic `RpcError`
+### reverts. We constrain the number of threads when we run these tests.
+	cd modules/matching-engine-testing && cargo test-sbf --features mainnet -- --test-threads 1
+
 .PHONY: anchor-test
 anchor-test: anchor-test-setup
 	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
@@ -65,7 +84,7 @@ anchor-test: anchor-test-setup
 
 .PHONY: anchor-test-upgrade
 anchor-test-upgrade: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
-	anchor build -- --features testnet
+	anchor build --no-idl -- --features testnet
 	cp target/deploy/matching_engine.so ts/tests/artifacts/new_testnet_matching_engine.so
 	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
 	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so

@@ -3,6 +3,7 @@ members = [
     "modules/*",
     "programs/*"
 ]
+exclude = ["lib"]
 resolver = "2"
 
 [workspace.package]
@@ -47,11 +48,18 @@ hex = "0.4.3"
 ruint = "1.9.0"
 cfg-if = "1.0"
 hex-literal = "0.4.1"
+bytemuck = "1.13.0"
+wormhole-svm-shim = { git = "https://github.com/wormhole-foundation/wormhole.git", rev = "33dd6a56541c2d15d3e20faa1330ba542a5fa727" }
+wormhole-svm-definitions = { git = "https://github.com/wormhole-foundation/wormhole.git", rev = "33dd6a56541c2d15d3e20faa1330ba542a5fa727", features = ["borsh"] }
+
+[patch."https://github.com/wormhole-foundation/wormhole.git"]
+wormhole-svm-shim = { path = "lib/wormhole/svm/wormhole-core-shims/crates/shim" }
+wormhole-svm-definitions = { path = "lib/wormhole/svm/wormhole-core-shims/crates/definitions" }
 
 [profile.release]
 overflow-checks = true
-lto = "fat"
-codegen-units = 1
+# lto = "fat"
+# codegen-units = 1
 
 [profile.release.build-override]
 opt-level = 3
@@ -60,6 +68,7 @@ codegen-units = 1
 
 [workspace.lints.clippy]
 correctness = { priority = -1, level = "warn"}
+inconsistent_digit_grouping = "allow"
 
 ### See clippy.toml.
 unnecessary_lazy_evaluations = "allow"

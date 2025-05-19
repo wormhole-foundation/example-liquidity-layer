@@ -1,7 +1,9 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, MessageProtocol},
+    state::{
+        Auction, AuctionConfig, AuctionInfo, AuctionParameters, AuctionStatus, MessageProtocol,
+    },
     utils,
 };
 use anchor_lang::prelude::*;
@@ -93,6 +95,7 @@ pub struct PlaceInitialOfferCctp<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
+    #[account(mut)]
     offer_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
@@ -130,12 +133,7 @@ pub fn place_initial_offer_cctp(
     // Saturating to u64::MAX is safe here. If the amount really ends up being this large, the
     // checked addition below will catch it.
     let security_deposit =
-        order
-            .max_fee()
-            .saturating_add(utils::auction::compute_notional_security_deposit(
-                &ctx.accounts.auction_config,
-                amount_in,
-            ));
+        calculate_security_deposit(order.max_fee(), amount_in, &ctx.accounts.auction_config);
 
     // Set up the Auction account for this auction.
     let config = &ctx.accounts.auction_config;
@@ -179,7 +177,7 @@ pub fn place_initial_offer_cctp(
         token_balance_before: ctx.accounts.offer_token.amount,
         amount_in,
         total_deposit: info.total_deposit(),
-        max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info)
+        max_offer_price_allowed: utils::auction::compute_max_allowed_offer(config, info)
             .checked_sub(1),
     }));
 
@@ -204,4 +202,15 @@ pub fn place_initial_offer_cctp(
             .checked_add(security_deposit)
             .ok_or_else(|| MatchingEngineError::U64Overflow)?,
     )
+}
+
+pub fn calculate_security_deposit(
+    max_fee: u64,
+    amount_in: u64,
+    auction_parameters: &AuctionParameters,
+) -> u64 {
+    max_fee.saturating_add(utils::auction::compute_notional_security_deposit(
+        auction_parameters,
+        amount_in,
+    ))
 }
