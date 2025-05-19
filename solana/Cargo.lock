@@ -6971,7 +6971,6 @@ dependencies = [
 [[package]]
 name = "wormhole-svm-definitions"
 version = "0.1.0"
-source = "git+https://github.com/wormhole-foundation/wormhole.git?rev=33dd6a56541c2d15d3e20faa1330ba542a5fa727#33dd6a56541c2d15d3e20faa1330ba542a5fa727"
 dependencies = [
  "borsh 1.5.0",
  "cfg-if",
@@ -6982,7 +6981,6 @@ dependencies = [
 [[package]]
 name = "wormhole-svm-shim"
 version = "0.1.0"
-source = "git+https://github.com/wormhole-foundation/wormhole.git?rev=33dd6a56541c2d15d3e20faa1330ba542a5fa727#33dd6a56541c2d15d3e20faa1330ba542a5fa727"
 dependencies = [
  "solana-program",
  "wormhole-svm-definitions",
@@ -7173,11 +7171,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "wormhole-svm-definitions"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "wormhole-svm-shim"
-version = "0.1.0"

@@ -52,7 +52,7 @@ bytemuck = "1.13.0"
 wormhole-svm-shim = { git = "https://github.com/wormhole-foundation/wormhole.git", rev = "33dd6a56541c2d15d3e20faa1330ba542a5fa727" }
 wormhole-svm-definitions = { git = "https://github.com/wormhole-foundation/wormhole.git", rev = "33dd6a56541c2d15d3e20faa1330ba542a5fa727", features = ["borsh"] }
 
-[patch."https://github.com/wormholelabs-xyz/wormhole.git"]
+[patch."https://github.com/wormhole-foundation/wormhole.git"]
 wormhole-svm-shim = { path = "lib/wormhole/svm/wormhole-core-shims/crates/shim" }
 wormhole-svm-definitions = { path = "lib/wormhole/svm/wormhole-core-shims/crates/definitions" }
 
