@@ -1,0 +1,38 @@
+[
+  {
+    "chainId": 2,
+    "wormhole": "",
+    "token": "",
+    "tokenMessenger": ""
+  },
+  {
+    "chainId": 5,
+    "wormhole": "",
+    "token": "",
+    "tokenMessenger": ""
+  },
+  {
+    "chainId": 6,
+    "wormhole": "",
+    "token": "",
+    "tokenMessenger": ""
+  },
+  {
+    "chainId": 23,
+    "wormhole": "",
+    "token": "",
+    "tokenMessenger": ""
+  },
+  {
+    "chainId": 24,
+    "wormhole": "",
+    "token": "",
+    "tokenMessenger": ""
+  },
+  {
+    "chainId": 30,
+    "wormhole": "",
+    "token": "",
+    "tokenMessenger": ""
+  }
+]

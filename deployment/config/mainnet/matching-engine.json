@@ -1,0 +1,16 @@
+[
+  {
+    "chainId": 1,
+    "ownerAssistant": "DNuVesmYQizpEVXYJZGECSeshqAxHB4fbqX2UC6ehpK4",
+    "feeRecipient": "AdAVF5KmmGmpNQhjY7FL96wZLEynD6Mx3VXJTZf2yFps",
+    "userPenaltyRewardBps": "100",
+    "initialPenaltyBps": "100",
+    "auctionDuration": "10",
+    "auctionGracePeriod": "20",
+    "auctionPenaltySlots": "20",
+    "minOfferDeltaBps": "50000",
+    "securityDepositBase": "1000000",
+    "securityDepositBps": "1000",
+    "cctpAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+  }
+]

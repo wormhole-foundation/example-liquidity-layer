@@ -1,0 +1,30 @@
+{
+  "name": "deployment",
+  "scripts": {
+    "evm-deps": "forge build --contracts ../evm/lib/openzeppelin-contracts/contracts/proxy && forge build --config-path ../evm/foundry.toml",
+    "build-evm": "npm run evm-deps && npx typechain --target=ethers-v5 --out-dir=./contract-bindings ../evm/out/[!build-info]*/*.json",
+    "check": "npx tsc --noEmit"
+  },
+  "author": "",
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@inquirer/confirm": "^3.1.9",
+    "@solana/web3.js": "1.95.3",
+    "@typechain/ethers-v5": "^11.1.2",
+    "@types/node": "^20.11.22",
+    "@wormhole-foundation/example-liquidity-layer-solana": "file:../solana",
+    "@wormhole-foundation/sdk-base": "^0.7.0",
+    "@wormhole-foundation/sdk-definitions": "^0.7.0",
+    "@xlabs-xyz/ledger-signer": "^0.0.4",
+    "@xlabs-xyz/ledger-signer-solana": "^0.0.1",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.4.5",
+    "ethers": "^5.7.2",
+    "tsx": "^4.7.2",
+    "typechain": "^8.3.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.8"
+  }
+}

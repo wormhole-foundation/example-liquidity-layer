@@ -1,0 +1,59 @@
+{
+  "operatingChains": [1],
+  "evm": {
+    "networks": [
+      {
+        "name": "Ethereum",
+        "network": "Mainnet",
+        "externalId": "1",
+        "chainId": 2,
+        "rpc": "https://rpc.ankr.com/eth"
+      },
+      {
+        "name": "Polygon",
+        "network": "Mainnet",
+        "externalId": "137",
+        "chainId": 5,
+        "rpc": "https://rpc.ankr.com/polygon"
+      },
+      {
+        "name": "Avalanche",
+        "network": "Mainnet",
+        "externalId": "43114",
+        "chainId": 6,
+        "rpc": "https://rpc.ankr.com/avalanche"
+      },
+      {
+        "name": "Arbitrum",
+        "network": "Mainnet",
+        "externalId": "42161",
+        "chainId": 23,
+        "rpc": "https://rpc.ankr.com/arbitrum"
+      },
+      {
+        "name": "Optimism",
+        "network": "Mainnet",
+        "externalId": "10",
+        "chainId": 24,
+        "rpc": "https://rpc.ankr.com/optimism"
+      },
+      {
+        "name": "Base",
+        "network": "Mainnet",
+        "externalId": "8453",
+        "chainId": 30,
+        "rpc": "https://mainnet.base.org"
+      }
+    ]
+  },
+  "solana": {
+    "networks": [
+      {
+        "name": "Solana",
+        "network": "Mainnet",
+        "chainId": 1,
+        "rpc": "https://api.mainnet-beta.solana.com"
+      }
+    ]
+  }
+}

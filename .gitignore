@@ -6,3 +6,7 @@ node_modules
 *.tgz
 dist
 .env
+out
+cache
+tmp
+ts-build
